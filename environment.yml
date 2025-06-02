@@ -1,0 +1,127 @@
+name: fava-pqc
+channels:
+  - conda-forge
+  - defaults
+  - anaconda
+
+dependencies:
+  # Python version
+  - python=3.11
+
+  # Core Fava dependencies (from pyproject.toml)
+  - babel>=2.11,<3
+  - flask>=2.2,<4
+  - jinja2>=3,<4
+  - werkzeug>=2.2,<4
+  - click>=7,<9
+  - ply>=3.4
+  - simplejson>=3.16.0,<4
+  - watchfiles>=0.20.0
+  - markdown2>=2.3.0,<3
+
+  # Web server dependencies
+  - cheroot>=8,<11
+
+  # Cryptographic libraries (current and PQC preparation)
+  - cryptography>=41.0.0
+  - pyopenssl>=23.0.0
+  - openssl>=3.0
+
+  # Development and testing tools
+  - pytest>=8
+  - pytest-cov>=6
+  - setuptools>=67
+  - wheel
+  - pip
+  - mypy>=1.14
+  - ruff>=0.11
+  - pre-commit>=4
+
+  # Documentation tools
+  - sphinx>=7
+
+  # Data handling and Excel support
+  - pandas
+  - openpyxl
+  - xlsxwriter
+
+  # HTTP and API libraries
+  - requests>=2
+  - urllib3
+
+  # Build tools
+  - build
+  - setuptools-scm>=8.0
+
+  # Node.js for frontend development
+  - nodejs>=18
+
+  # Development utilities
+  - ipython
+  - jupyter
+  - notebook
+
+  # Version control
+  - git
+
+  # Additional Python libraries for PQC development
+  - numpy
+  - scipy
+
+  # Install via pip (PQC and specialized libraries not available in conda)
+  - pip:
+    # Beancount dependencies (not in conda-forge)
+    - beancount>=2,<4
+    - beanquery>=0.1,<0.3
+    - beangulp>=0.1
+    - flask-babel>=3,<5
+    
+    # Additional cryptographic libraries
+    - pycryptodome>=3.19.0  # Enhanced crypto library
+    
+    # WASM and Tree-sitter support
+    - tree-sitter>=0.20.0
+    
+    # Excel support dependencies
+    - pyexcel>=0.5
+    - pyexcel-ods3>=0.5
+    - pyexcel-xlsx>=0.5
+    
+    # Type checking support
+    - types-requests>=2.32.0.20250515
+    - types-setuptools>=67
+    - types-simplejson>=3
+    - sphinx-autodoc-typehints>=2
+    - furo>=2024
+    
+    # Additional development tools
+    - black>=23.0.0
+    - isort>=5.12.0
+    
+    # Testing utilities
+    - pytest-mock>=3.10.0
+    - pytest-asyncio>=0.21.0
+    
+    # Security and crypto testing
+    - cryptography-vectors  # Test vectors for crypto
+    
+    # Performance profiling
+    - py-spy
+    - memory-profiler
+    
+    # Additional libraries for future PQC implementation
+    - pysha3>=1.0.0  # SHA-3 implementation
+    
+    # Configuration management
+    - pydantic>=2.0.0  # For robust configuration validation
+    - python-dotenv>=1.0.0  # Environment variable management
+    
+    # Logging and monitoring
+    - structlog>=23.0.0  # Structured logging
+    
+    # Development utilities
+    - rich>=13.0.0  # Rich terminal output
+    - typer>=0.9.0  # CLI framework (alternative to click)
+    
+    # Note: PQC libraries like liboqs-python need special installation on Windows
+    # See the setup instructions in README_PQC_SETUP.md for manual installation steps 
