@@ -1,0 +1,246 @@
+[project]
+name = "fava"
+dynamic = ["version"]
+description = "Web interface for the accounting tool Beancount."
+readme = "README.rst"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+  {name = "Dominik Aumayr", email = "dominik@aumayr.name"}
+]
+maintainers = [
+  {name = "Jakob Schnitzer", email = "mail@jakobschnitzer.de"}
+]
+keywords = ["fava", "beancount", "accounting",]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Framework :: Flask",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Information Technology",
+    "Natural Language :: English",
+    "Programming Language :: JavaScript",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+    "Babel>=2.11,<3",
+    "Flask-Babel>=3,<5",
+    "Flask>=2.2,<4",
+    "Jinja2>=3,<4",
+    "Werkzeug>=2.2,<4",
+    "beancount>=2,<4",
+    "beanquery>=0.1,<0.3",
+    "beangulp>=0.1",
+    "cheroot>=8,<11",
+    "click>=7,<9",
+    "markdown2>=2.3.0,<3",
+    "ply>=3.4",
+    "simplejson>=3.16.0,<4",
+    "watchfiles>=0.20.0",
+]
+
+[project.urls]
+Homepage = "https://beancount.github.io/fava/"
+Changelog = "https://beancount.github.io/fava/changelog.html"
+Source = "https://github.com/beancount/fava/"
+Issues = "https://github.com/beancount/fava/issues/"
+Chat = "https://gitter.im/beancount/fava"
+
+[project.scripts]
+fava = "fava.cli:main"
+
+[project.optional-dependencies]
+# Extra dependencies that are needed for the export to excel.
+excel =[
+    "pyexcel>=0.5",
+    "pyexcel-ods3>=0.5",
+    "pyexcel-xlsx>=0.5",
+]
+
+[dependency-groups]
+# Building the documentation website with sphinx.
+docs = [
+    "furo>=2024",
+    "sphinx>=7",
+    "sphinx-autodoc-typehints>=2",
+]
+# Type-checking with mypy.
+mypy = [
+    "mypy>=1.14",
+    "pytest>=8",
+    "types-requests>=2.32.0.20250515",
+    "types-setuptools>=67",
+    "types-simplejson>=3",
+]
+# Add setuptools for the old_deps constraints
+# (otherwise it is not added to the constraints as it's only a build dependency).
+old-deps = [
+    "setuptools",
+]
+# Running pre-commit hooks.
+pre-commit = [
+    "pre-commit>=4",
+]
+# Dependencies for the scripts/*.py.
+scripts = [
+    "requests>=2",
+]
+# Dependencies for tests.
+test = [
+    "fava[excel]",
+    "pytest-cov>=6",
+    "pytest>=8",
+    "setuptools>=67",
+]
+# Stuff for the dev environment.
+dev = [
+    { include-group = "mypy" },
+    { include-group = "pre-commit" },
+    { include-group = "test" },
+    "ruff>=0.11",
+]
+
+[build-system]
+requires = ["setuptools>=67", "setuptools_scm>=8.0", "Babel>=2.7,<3", "wheel"]
+build-backend = "_build_backend"
+backend-path = ["."]
+
+[tool.uv]
+python-preference = "system"
+# Pin some lower bounds for transitive dependencies in the old_deps tests
+# This a basically determined by increasing them until getting a combination that runs.
+constraint-dependencies = [
+    "bottle>=0.12.20",  # older ones didn't build
+    "importlib_metadata>=3.6",
+    "jaraco-functools>=4",
+    "lxml>=5.3.0",  # older ones don't have wheels for recent Python versions
+    "more-itertools>=6",
+    "pytest>=7.2",  # also used for running the tests of Fava, needs to somewhat recent
+    "python-dateutil>=2",
+    "pytz>=2020",
+    "setuptools>=67",
+    "six>=1.16",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+
+[tool.black]
+line-length = 79
+preview = true
+
+[tool.mypy]
+mypy_path = "stubs"
+strict = true
+files = [
+    "_build_backend.py",
+    "contrib/scripts.py",
+    "src/fava",
+    "tests",
+]
+
+[tool.pytest.ini_options]
+# filterwarnings = "ignore:.*locked_cached_property.*deprecated:DeprecationWarning"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "*/fava/beans/types.py",
+    "*/fava/ext/auto_commit.py",
+    "*/fava/ext/portfolio_list/__init__.py",
+ ]
+
+[tool.coverage.paths]
+source = [
+    "src/fava/",
+    ".tox/**/fava/",
+]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+extend-select = [
+    "ALL",
+]
+extend-ignore = [
+    "ANN401",   # allow `typing.Any`
+    "C901",     # ignore mccabe complecity for now
+    "CPY",      # no copyright notices in all files
+    "COM812",   # better handled by formatter - avoid having trailing commas everywhere
+    "DOC201",   # allow returns not to be documented for now
+    "DOC501",   # allow raised exception not to be documented for now
+    "DOC502",   # allow documented exceptions that are not explicitly raised
+    "D105",     # allow magic methods to be undocumented
+    "D107",     # allow __init__ to be undocumented - the class should be.
+    "PD",       # pandas-related, has false-positives
+    "PERF203",  # allow try-except in loop; zero-cost since Python 3.11
+    "PLR2004",  # allow magic constants in comparisons
+    "PLR6301",  # allow methods that do not use self
+    "S404",     # This is a bit over-zelous on subprocess
+    "S603",     # This is a bit over-zelous on subprocess.run
+]
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true  # always move type-only imports to TYPE_CHECKING-if blocks
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = false
+known-first-party = ["fava"]
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 9
+
+[tool.ruff.lint.per-file-ignores]
+"contrib/**" = ["D", "INP"]
+"docs/**" = ["D", "INP"]
+"tests/conftest.py" = ["S101"]
+"tests/test_*.py" = ["D", "PLC2701", "S101", "SLF001"]
+"tests/data/import_config.py" = ["D", "INP", "S101"]
+"src/fava/core/filters.py" = ["D"]
+
+# pylint is not run as part of linting for Fava anymore but we keep these disables
+# around for devs who might have pylint automatically run by their editors to avoid
+# a ton of pylint warnings
+# mypy with strict settings handles most of the whole-project analysis where pylint
+# still shines - the simpler rules are mostly covered by ruff
+[tool.pylint.'messages control']
+disable = [
+    "too-few-public-methods",
+    "too-many-branches",              # is checked by ruff (PLR0912)
+    "too-many-instance-attributes",
+    "too-many-locals",                # is checked by ruff (PLR0914)
+    "duplicate-code",
+    "unused-argument",                # is checked by ruff (ARG001)
+    "stop-iteration-return",
+    "ungrouped-imports",
+    "invalid-unary-operand-type",    # type-checking like, had false-positives
+    "not-an-iterable",               # type-checking like, had false-positives
+    "unsubscriptable-object",        # type-checking like, had false-positives
+    "broad-except",                  # is checked by ruff (BLE)
+    "too-many-return-statements",    # is checked by ruff (PLR0911)
+    "too-many-arguments",            # is checked by ruff (PLR0913)
+    "too-many-positional-arguments", # is checked by ruff (PLR0917)
+    "redefined-builtin",             # is checked by ruff (A002)
+    "protected-access",              # is checked by ruff (SLF001)
+    "invalid-name",                  # is checked by ruff (N)
+    "missing-docstring",             # is checked by ruff (D)
+    "redefined-outer-name",          # false positives for pytest fixtures
+]

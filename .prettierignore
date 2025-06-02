@@ -1,0 +1,2 @@
+src/fava/**/*.html
+tests/__snapshots__/*

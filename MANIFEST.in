@@ -1,0 +1,14 @@
+# setuptools_scm ensure all required files are included,
+# we only need excludes here (except for the translations,
+# which are compiled and not tracked in git).
+
+exclude .editorconfig
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude .prettierignore
+exclude .prettierrc.json
+prune .github
+
+graft src/fava/static
+exclude src/fava/translations/babel.conf
+recursive-include src/fava/translations *.mo

@@ -1,0 +1,26 @@
+{% set partial = request.args.get('partial') %}
+{% if not partial %}
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="{{ static_url('favicon.ico') }}">
+    <link rel="stylesheet" href="{{ static_url('app.css') }}">
+    <title>{{ page_title or "" }} - {{ ledger.options.title }}</title>
+    <script type="module" src="{{ static_url('app.js') }}"></script>
+  </head>
+  <body>
+    <!-- <header> and <aside> get inserted here -->
+    <article>
+      {%- endif %}
+      {% block content %}{{ content }}{% endblock %}
+      {% if page_title %}<script type="application/json" id="page-title">{{ page_title|tojson }}</script>{% endif %}
+      {% if partial %}<script type="application/json" id="ledger-mtime">{{ ledger.mtime|tojson }}</script>{% endif %}
+      {%- if not partial %}
+    </article>
+    <script type="application/json" id="ledger-data">{{ get_ledger_data()|tojson }}</script>
+    <script type="application/json" id="ledger-mtime">{{ ledger.mtime|tojson }}</script>
+    <script type="application/json" id="translations">{{ translations()|tojson }}</script>
+  </body>
+</html>
+{%- endif %}

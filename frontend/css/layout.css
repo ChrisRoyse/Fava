@@ -1,0 +1,91 @@
+/*
+There are three main layout components.
+
+The header (<header>), the left sidebar (<aside>) and the main content (<article>).
+In the HTML markup, they are all direct children of the <body>.
+
+These elements are arranged as follows:
+
+     header
+  ------------
+  aside | main
+
+On mobile at resolutions smaller than 768px, we hide the aside menu,
+having it slide in from the left side. This means that iPads and larger will show the side menu.
+
+For most reports, we want the header to scroll on mobile but for some
+like the editor we need to have a fixed size filling the whole screen.
+For those reports, the .fixed-fullsize-container be used.
+*/
+
+:root {
+  --aside-width: 160px;
+}
+
+body {
+  display: grid;
+  grid:
+    "header header" auto
+    "aside main" 1fr
+    /
+    var(--aside-width) 1fr;
+  width: 100vw;
+  height: 100vh;
+  padding: 0;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: header;
+  gap: 0.5em;
+  align-items: center;
+  padding: 0.5em;
+  color: var(--header-color);
+  background-color: var(--header-background);
+}
+
+article {
+  position: relative;
+  grid-area: main;
+  padding: 1.5em;
+  overflow-x: auto;
+}
+
+article:has(> .fixed-fullsize-container) {
+  padding: 0;
+}
+
+.fixed-fullsize-container {
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  max-height: 100vh;
+}
+
+@media (width <= 767px) {
+  article {
+    padding: 1em;
+  }
+
+  body {
+    display: block;
+    font-size: 16px;
+    transition: var(--transitions);
+  }
+
+  body:has(> article > .fixed-fullsize-container) {
+    display: grid;
+    grid-template: "header" max-content "main" 1fr;
+  }
+
+  header {
+    padding-left: 50px;
+  }
+}
+
+@media print {
+  body {
+    grid-template: "header" max-content "main" 1fr;
+  }
+}

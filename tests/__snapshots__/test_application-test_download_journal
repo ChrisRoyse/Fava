@@ -1,0 +1,16 @@
+;; -*- mode: org; mode: beancount; -*-
+
+option "title" "Long Example - Journal Export"
+
+option "operating_currency" "USD"
+option "name_assets" "Assets"
+option "name_liabilities" "Liabilities"
+option "name_equity" "Equity"
+option "name_income" "Income"
+option "name_expenses" "Expenses"
+plugin "beancount.plugins.auto_accounts"
+
+2016-05-07 * "Jewel of Morroco" "Eating out alone"
+  Liabilities:US:Chase:Slate                       -25.30 USD
+  Expenses:Food:Restaurant                          25.30 USD
+
