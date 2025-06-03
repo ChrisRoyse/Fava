@@ -108,12 +108,24 @@ class MockArgon2id:
         return self.derive_mock(password, salt)
 
 class MockHKDFExpand:
-    def __init__(self, algorithm, length, info, backend):
+    def __init__(self, algorithm, length, info, backend=None): # Added backend=None to make it optional for other mocks
         self.algorithm = algorithm
         self.length = length
         self.info = info
         self.backend = backend
-        self.derive_mock = mock.Mock(return_value=b"mock_hkdf_derived_key_material")
+        self.derive_mock = mock.Mock(return_value=b"M" * self.length) # Consistent with MockHKDF
+
+    def derive(self, ikm):
+        return self.derive_mock(ikm)
+
+class MockHKDF:
+    def __init__(self, algorithm, length, salt, info, backend):
+        self.algorithm = algorithm
+        self.length = length
+        self.salt = salt
+        self.info = info
+        self.backend = backend
+        self.derive_mock = mock.Mock(return_value=b"M" * self.length)
 
     def derive(self, ikm):
         return self.derive_mock(ikm)
@@ -127,13 +139,13 @@ class TestKeyManagementFunctions:
     """
 
     @pytest.mark.key_management
+    @pytest.mark.key_management
     @pytest.mark.critical_path
-    @mock.patch('fava.crypto.keys.Argon2id', new_callable=lambda: MockArgon2id) # Adjusted patch
-    @mock.patch('fava.crypto.keys.HKDFExpand', new_callable=lambda: MockHKDFExpand) # Adjusted patch
-    @mock.patch('fava.crypto.keys.oqs.KeyEncapsulation', new_callable=lambda name: MockOQS_KeyEncapsulation(name))
-    @mock.patch('fava.crypto.keys.X25519PrivateKey', new_callable=lambda: MockX25519PrivateKey)
+    @mock.patch('fava.crypto.keys.Argon2id')
+    @mock.patch('fava.crypto.keys.HKDF')
+    @mock.patch('fava.crypto.keys.KeyEncapsulation')
+    @mock.patch('fava.crypto.keys.X25519PrivateKey')
     def test_tp_dar_km_001_derive_kem_keys_from_passphrase(self, mock_x25519_priv_key_class, mock_oqs_kem_class, mock_hkdf_class, mock_argon2id_class, mock_fava_config):
-        # UUT: fava.crypto.keys.derive_kem_keys_from_passphrase
         from fava.crypto import keys as key_management_module # Assuming UUT is here
 
         passphrase = "test_passphrase_123!"
@@ -144,6 +156,11 @@ class TestKeyManagementFunctions:
         pqc_kem_spec = "ML-KEM-768"
 
         # Configure mocks
+        mock_argon2id_class.return_value = MockArgon2id()
+        mock_hkdf_class.return_value = MockHKDF(algorithm=None, length=32, salt=None, info=b'', backend=None)
+        mock_oqs_kem_class.return_value = MockOQS_KeyEncapsulation('ML-KEM-768')
+        mock_x25519_priv_key_class.return_value = MockX25519PrivateKey()
+        
         mock_argon2_instance = mock_argon2id_class.return_value
         mock_argon2_instance.derive_mock.return_value = b"mock_ikm_from_argon"
 
@@ -163,19 +180,23 @@ class TestKeyManagementFunctions:
         #     passphrase, salt, pbkdf_algorithm, kdf_algorithm_for_ikm,
         #     classical_kem_spec, pqc_kem_spec
         # )
-        pytest.skip("UUT function fava.crypto.keys.derive_kem_keys_from_passphrase not implemented yet.")
+        # UUT function fava.crypto.keys.derive_kem_keys_from_passphrase is now implemented
+        classical_keys, pqc_keys = key_management_module.derive_kem_keys_from_passphrase(
+            passphrase, salt, pbkdf_algorithm, kdf_algorithm_for_ikm,
+            classical_kem_spec, pqc_kem_spec
+        )
 
-        # Assertions (Example)
-        # mock_argon2_instance.derive.assert_called_once_with(passphrase.encode(), salt)
-        # assert mock_hkdf_instance.derive.call_count == 2
-        # mock_hkdf_instance.derive.assert_any_call(b"mock_ikm_from_argon") # Check specific info/length later
-        # assert classical_keys is not None # Should be mock objects
-        # assert pqc_keys is not None # Should be mock objects
+        # Assertions
+        mock_argon2_instance.derive_mock.assert_called_once_with(passphrase, salt)
+        assert mock_hkdf_instance.derive_mock.call_count == 2
+        mock_hkdf_instance.derive_mock.assert_any_call(b"mock_ikm_from_argon")
+        assert classical_keys is not None  # Should be mock objects
+        assert pqc_keys is not None  # Should be mock objects
 
 
     @pytest.mark.key_management
-    @mock.patch('fava.crypto.keys.Argon2id', new_callable=lambda: MockArgon2id)
-    @mock.patch('fava.crypto.keys.HKDFExpand', new_callable=lambda: MockHKDFExpand)
+    @mock.patch('fava.crypto.keys.Argon2id')
+    @mock.patch('fava.crypto.keys.HKDF')
     def test_tp_dar_km_002_derive_kem_keys_uses_salt_correctly(self, mock_hkdf_class, mock_argon2id_class, mock_fava_config):
         # UUT: fava.crypto.keys.derive_kem_keys_from_passphrase
         from fava.crypto import keys as key_management_module
@@ -183,24 +204,26 @@ class TestKeyManagementFunctions:
         passphrase = "test_passphrase_123!"
         salt1 = b'test_argon_salt_A_16b'
         salt2 = b'test_argon_salt_B_16b'
+        mock_argon2id_class.return_value = MockArgon2id()
+        mock_hkdf_class.return_value = MockHKDF(algorithm=None, length=32, salt=None, info=b'', backend=None)
+        
         mock_argon2_instance = mock_argon2id_class.return_value
 
         # Call 1
         mock_argon2_instance.derive_mock.return_value = b"ikm_for_salt1"
-        # key_management_module.derive_kem_keys_from_passphrase(passphrase, salt1, "Argon2id", "HKDF-SHA3-512", "X25519", "ML-KEM-768")
-        # call_args_salt1 = mock_argon2_instance.derive.call_args
+        key_management_module.derive_kem_keys_from_passphrase(passphrase, salt1, "Argon2id", "HKDF-SHA3-512", "X25519", "ML-KEM-768")
+        call_args_salt1 = mock_argon2_instance.derive_mock.call_args
 
         # Call 2
         mock_argon2_instance.derive_mock.return_value = b"ikm_for_salt2"
-        # key_management_module.derive_kem_keys_from_passphrase(passphrase, salt2, "Argon2id", "HKDF-SHA3-512", "X25519", "ML-KEM-768")
-        # call_args_salt2 = mock_argon2_instance.derive.call_args
-        pytest.skip("UUT function fava.crypto.keys.derive_kem_keys_from_passphrase not implemented yet.")
+        key_management_module.derive_kem_keys_from_passphrase(passphrase, salt2, "Argon2id", "HKDF-SHA3-512", "X25519", "ML-KEM-768")
+        call_args_salt2 = mock_argon2_instance.derive_mock.call_args
 
         # Assertions (Example)
-        # assert call_args_salt1[0][1] == salt1
-        # assert call_args_salt2[0][1] == salt2
-        # assert mock_argon2_instance.derive.call_args_list[0][0][1] == salt1 # ikm from salt1
-        # assert mock_argon2_instance.derive.call_args_list[1][0][1] == salt2 # ikm from salt2
+        assert call_args_salt1[0][1] == salt1
+        assert call_args_salt2[0][1] == salt2
+        assert mock_argon2_instance.derive_mock.call_args_list[0][0][1] == salt1 # ikm from salt1
+        assert mock_argon2_instance.derive_mock.call_args_list[1][0][1] == salt2 # ikm from salt2
 
 
     @pytest.mark.key_management
@@ -208,41 +231,56 @@ class TestKeyManagementFunctions:
     def test_tp_dar_km_003_key_derivation_fails_unsupported_spec(self, mock_fava_config):
         # UUT: fava.crypto.keys.derive_kem_keys_from_passphrase
         from fava.crypto import keys as key_management_module
+        from fava.crypto.exceptions import UnsupportedAlgorithmError # Import the specific exception
+
         passphrase = "test_passphrase"
         salt = b'some_salt_value_16b'
 
-        # with pytest.raises((KeyManagementError, ConfigurationError, ValueError)):
-        #     key_management_module.derive_kem_keys_from_passphrase(
-        #         passphrase, salt, "Argon2id", "UNSUPPORTED_KDF", "X25519", "ML-KEM-768"
-        #     )
-        # with pytest.raises((KeyManagementError, ConfigurationError, ValueError)):
-        #     key_management_module.derive_kem_keys_from_passphrase(
-        #         passphrase, salt, "Argon2id", "HKDF-SHA3-512", "X25519", "UNSUPPORTED_PQC_KEM"
-        #     )
-        pytest.skip("UUT function fava.crypto.keys.derive_kem_keys_from_passphrase not implemented yet.")
+        with pytest.raises(UnsupportedAlgorithmError):
+            key_management_module.derive_kem_keys_from_passphrase(
+                passphrase, salt, "Argon2id", "UNSUPPORTED_KDF", "X25519", "ML-KEM-768"
+            )
+        with pytest.raises(UnsupportedAlgorithmError):
+            key_management_module.derive_kem_keys_from_passphrase(
+                passphrase, salt, "Argon2id", "HKDF-SHA3-512", "X25519", "UNSUPPORTED_PQC_KEM"
+            )
+        with pytest.raises(UnsupportedAlgorithmError):
+            key_management_module.derive_kem_keys_from_passphrase(
+                passphrase, salt, "UNSUPPORTED_PBKDF", "HKDF-SHA3-512", "X25519", "ML-KEM-768"
+            )
+        with pytest.raises(UnsupportedAlgorithmError):
+            key_management_module.derive_kem_keys_from_passphrase(
+                passphrase, salt, "Argon2id", "HKDF-SHA3-512", "UNSUPPORTED_CLASSICAL_KEM", "ML-KEM-768"
+            )
 
 
     @pytest.mark.key_management
+    @pytest.mark.key_management
     @mock.patch('builtins.open', new_callable=mock.mock_open)
-    @mock.patch('fava.crypto.keys.oqs.KeyEncapsulation', new_callable=lambda name: MockOQS_KeyEncapsulation(name))
-    @mock.patch('fava.crypto.keys.X25519PrivateKey', new_callable=lambda: MockX25519PrivateKey)
-    def test_tp_dar_km_004_load_keys_from_external_file(self, mock_x25519_class, mock_oqs_kem_class, mock_open_func, mock_fava_config):
+    @mock.patch('fava.crypto.keys.KeyEncapsulation', MockOQS_KeyEncapsulation)
+    @mock.patch('fava.crypto.keys.X25519PrivateKey', MockX25519PrivateKey)
+    def test_tp_dar_km_004_load_keys_from_external_file(self, x25519_private_key, key_encapsulation, mock_open, mock_fava_config):
         # UUT: fava.crypto.keys.load_keys_from_external_file
         from fava.crypto import keys as key_management_module
         key_file_path_config = {"classical_private": "mock_classical.key", "pqc_private": "mock_pqc.key"}
 
-        mock_open_func.side_effect = [
+        mock_open.side_effect = [
             mock.mock_open(read_data=b"classical_key_bytes").return_value,
             mock.mock_open(read_data=b"pqc_key_bytes").return_value
         ]
-        # classical_keys, pqc_keys = key_management_module.load_keys_from_external_file(key_file_path_config)
-        pytest.skip("UUT function fava.crypto.keys.load_keys_from_external_file not implemented yet.")
+        classical_keys, pqc_keys = key_management_module.load_keys_from_external_file(key_file_path_config)
         # Assertions
-        # mock_open_func.assert_any_call("mock_classical.key", "rb")
-        # mock_open_func.assert_any_call("mock_pqc.key", "rb")
-        # MockX25519PrivateKey.from_private_bytes.assert_called_once_with(b"classical_key_bytes")
-        # mock_oqs_kem_class.return_value.keypair_from_secret.assert_called_once_with(b"pqc_key_bytes") # Assuming Kyber is default or configured
-
+        mock_open.assert_any_call("mock_classical.key", "rb")
+        mock_open.assert_any_call("mock_pqc.key", "rb")
+        
+        # x25519_private_key is the MockX25519PrivateKey class.
+        # Its static method from_private_bytes is called by the UUT.
+        x25519_private_key.from_private_bytes.assert_called_once_with(b"classical_key_bytes")
+        
+        # key_encapsulation is the MockOQS_KeyEncapsulation class.
+        # The UUT creates an instance of it, so we check calls on its return_value.
+        # The method keypair_from_secret is an instance method on MockOQS_KeyEncapsulation.
+        key_encapsulation.return_value.keypair_from_secret.assert_called_once_with(b"pqc_key_bytes")
     @pytest.mark.key_management
     @pytest.mark.error_handling
     @mock.patch('builtins.open', new_callable=mock.mock_open)
@@ -253,14 +291,15 @@ class TestKeyManagementFunctions:
         
         # Scenario 1: File not found
         mock_open_func.side_effect = FileNotFoundError
-        # with pytest.raises(KeyManagementError):
-        #    key_management_module.load_keys_from_external_file({"classical_private": "non_existent.key"})
+        with pytest.raises(exceptions.KeyManagementError): # Use qualified name
+           key_management_module.load_keys_from_external_file({"classical_private": "non_existent.key"})
 
         # Scenario 2: Invalid format
+        # Reset side_effect for open to avoid interference from previous FileNotFoundError
         mock_open_func.side_effect = [mock.mock_open(read_data=b"bad_key_data").return_value]
-        # with pytest.raises(KeyManagementError):
-        #    key_management_module.load_keys_from_external_file({"classical_private": "bad_format.key"})
-        pytest.skip("UUT function fava.crypto.keys.load_keys_from_external_file not implemented yet.")
+        # mock_x25519_from_bytes is already set to raise ValueError("Invalid key format")
+        with pytest.raises(exceptions.KeyManagementError): # Use qualified name
+           key_management_module.load_keys_from_external_file({"classical_private": "bad_format.key"})
 
 
     @pytest.mark.key_management
@@ -270,17 +309,18 @@ class TestKeyManagementFunctions:
     def test_tp_dar_km_006_export_fava_managed_keys_secure_format(self, mock_secure_format, mock_retrieve_key, mock_fava_config):
         # UUT: fava.crypto.keys.export_fava_managed_pqc_private_keys
         from fava.crypto import keys as key_management_module
+        from fava.crypto import exceptions # Import for KeyManagementError
+
         mock_retrieve_key.return_value = MockOQS_KeyEncapsulation("ML-KEM-768")._mock_keypair_from_secret()[1] # mock private key bytes
         mock_secure_format.return_value = b"securely_formatted_exported_key_bytes"
 
-        # exported_data = key_management_module.export_fava_managed_pqc_private_keys(
-        #     "user_context_1", "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "export_passphrase"
-        # )
-        pytest.skip("UUT function fava.crypto.keys.export_fava_managed_pqc_private_keys not implemented yet.")
+        exported_data = key_management_module.export_fava_managed_pqc_private_keys(
+            "user_context_1", "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "export_passphrase"
+        )
         # Assertions
-        # mock_retrieve_key.assert_called_once_with("user_context_1")
-        # mock_secure_format.assert_called_once_with(mock_retrieve_key.return_value, "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "export_passphrase")
-        # assert exported_data == b"securely_formatted_exported_key_bytes"
+        mock_retrieve_key.assert_called_once_with("user_context_1", mock_fava_config, "export_passphrase") # Passphrase might be needed for retrieval
+        mock_secure_format.assert_called_once_with(mock_retrieve_key.return_value, "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "export_passphrase")
+        assert exported_data == b"securely_formatted_exported_key_bytes"
 
     @pytest.mark.key_management
     @pytest.mark.error_handling
@@ -289,11 +329,12 @@ class TestKeyManagementFunctions:
     def test_tp_dar_km_007_export_fava_managed_keys_not_found(self, mock_retrieve_key, mock_fava_config):
         # UUT: fava.crypto.keys.export_fava_managed_pqc_private_keys
         from fava.crypto import keys as key_management_module
-        # with pytest.raises(KeyManagementError):
-        #     key_management_module.export_fava_managed_pqc_private_keys(
-        #         "non_existent_context", "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "any_pass"
-        #     )
-        pytest.skip("UUT function fava.crypto.keys.export_fava_managed_pqc_private_keys not implemented yet.")
+        from fava.crypto import exceptions # Import for KeyManagementError
+
+        with pytest.raises(exceptions.KeyManagementError):
+            key_management_module.export_fava_managed_pqc_private_keys(
+                "non_existent_context", "ENCRYPTED_PKCS8_AES256GCM_PBKDF2", "any_pass"
+            )
 
 
 @pytest.mark.usefixtures("mock_crypto_libs", "mock_fava_config")
@@ -343,14 +384,14 @@ class TestHybridPqcHandler:
         pytest.skip("Test not implemented due to complex mocking setup.")
 
     @pytest.mark.config_dependent
-    @mock.patch('fava.crypto.handlers.oqs.KeyEncapsulation') # Path to oqs in handler module
+    @mock.patch('fava.crypto.handlers.KeyEncapsulation') # Path to KeyEncapsulation in handler module
     def test_tp_dar_hph_004_encrypt_uses_suite_config(self, mock_oqs_kem_class_in_handler, hybrid_handler, mock_fava_config):
         # Call encrypt_content with suite_config_kyber768, assert mock_oqs_kem_class_in_handler called with "ML-KEM-768"
         # Call encrypt_content with suite_config_kyber1024, assert mock_oqs_kem_class_in_handler called with "ML-KEM-1024"
         pytest.skip("Test not implemented.")
 
     @pytest.mark.critical_path
-    @mock.patch('fava.crypto.handlers.oqs.KeyEncapsulation')
+    @mock.patch('fava.crypto.handlers.KeyEncapsulation')
     def test_tp_dar_hph_005_pqc_kem_encapsulation(self, mock_oqs_kem_class_in_handler, hybrid_handler, mock_fava_config):
         # Isolate PQC KEM step in encrypt_content.
         # Assert mock_oqs_kem_class_in_handler.return_value.encapsulate called with correct PK.
@@ -465,13 +506,13 @@ class TestCryptoServiceLocator:
     """
     @pytest.fixture
     def mock_hybrid_handler_instance(self):
-        handler = mock.Mock(spec_set=['can_handle', 'encrypt_content', 'decrypt_content']) # Add methods as needed
+        handler = mock.Mock(spec_set=['can_handle', 'encrypt_content', 'decrypt_content', 'name']) # Add methods as needed
         handler.name = "HybridPqcHandler" # For identification
         return handler
 
     @pytest.fixture
     def mock_gpg_handler_instance(self):
-        handler = mock.Mock(spec_set=['can_handle', 'decrypt_content'])
+        handler = mock.Mock(spec_set=['can_handle', 'decrypt_content', 'name'])
         handler.name = "GpgHandler"
         return handler
 
@@ -603,7 +644,7 @@ class TestFavaLedgerIntegration:
 @pytest.fixture
 def mock_crypto_libs(monkeypatch):
     """Mocks core crypto libraries at a high level."""
-    monkeypatch.setattr("oqs.KeyEncapsulation", lambda name: MockOQS_KeyEncapsulation(name))
+    monkeypatch.setattr("fava.crypto.keys.KeyEncapsulation", lambda name: MockOQS_KeyEncapsulation(name))
     monkeypatch.setattr("cryptography.hazmat.primitives.asymmetric.x25519.X25519PrivateKey", MockX25519PrivateKey)
     monkeypatch.setattr("cryptography.hazmat.primitives.asymmetric.x25519.X25519PublicKey", MockX25519PublicKey)
     monkeypatch.setattr("cryptography.hazmat.primitives.ciphers.aead.AESGCM", MockAESGCM) # Assuming direct use

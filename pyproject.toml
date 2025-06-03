@@ -46,6 +46,8 @@ dependencies = [
     "ply>=3.4",
     "simplejson>=3.16.0,<4",
     "watchfiles>=0.20.0",
+    "mlkem>=1.0.0",
+    "argon2-cffi>=21.0.0",
 ]
 
 [project.urls]
@@ -153,6 +155,16 @@ files = [
 [tool.pytest.ini_options]
 # filterwarnings = "ignore:.*locked_cached_property.*deprecated:DeprecationWarning"
 testpaths = ["tests"]
+markers = [
+    "key_management: tests related to key management functions",
+    "critical_path: tests for critical path functionality",
+    "error_handling: tests for error handling scenarios",
+    "config_dependent: tests that depend on configuration",
+    "bundle_format: tests for encrypted file bundle format",
+    "security_sensitive: tests for security-sensitive operations",
+    "performance_smoke: basic performance validation tests",
+    "gpg_compatibility: tests for GPG compatibility features",
+]
 
 [tool.coverage.run]
 branch = true
