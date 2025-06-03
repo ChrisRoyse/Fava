@@ -40,6 +40,8 @@ from fava.internal_api import get_errors
 from fava.internal_api import get_ledger_data
 from fava.serialisation import deserialise
 from fava.serialisation import serialise
+from fava.pqc.global_config import GlobalConfig # Added for PQC Config API
+from fava.pqc.exceptions import CriticalConfigurationError as PQCCriticalConfigurationError # Added for PQC Config API
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -272,6 +274,53 @@ def get_changed() -> bool:
 
 api_endpoint(get_errors)
 api_endpoint(get_ledger_data)
+
+
+@api_endpoint
+def get_pqc_config() -> Mapping[str, Any]:
+    """Get PQC-related configuration for the frontend."""
+    try:
+        # Determine the correct path for the crypto settings file
+        # This mirrors the logic in application.py:create_app
+        crypto_settings_file_path = None
+        if g.ledger and hasattr(g.ledger.fava_options, 'fava_crypto_settings_file'):
+            crypto_settings_file_path = g.ledger.fava_options.fava_crypto_settings_file
+        
+        pqc_settings = GlobalConfig.get_crypto_settings(file_path=crypto_settings_file_path)
+        
+        # Selectively expose only necessary parts to the frontend
+        # For example, WASM public key and hashing algorithm
+        frontend_pqc_config = {}
+        
+        # WASM Module Integrity Config
+        wasm_config = pqc_settings.get("wasm_module_integrity", {})
+        if isinstance(wasm_config, dict):
+            frontend_pqc_config["wasm_module_integrity"] = {
+                "verification_enabled": wasm_config.get("verification_enabled", False),
+                "public_key_base64": wasm_config.get("public_key_base64"),
+                "signature_algorithm": wasm_config.get("signature_algorithm"),
+                "module_path": wasm_config.get("module_path", "/assets/tree-sitter-beancount.wasm"), # Default from current pqcWasmConfig.ts
+                "signature_path_suffix": wasm_config.get("signature_path_suffix", ".dilithium3.sig") # Default from current pqcWasmConfig.ts
+            }
+            
+        # Hashing Config
+        hashing_config = pqc_settings.get("hashing", {})
+        if isinstance(hashing_config, dict):
+            frontend_pqc_config["hashing"] = {
+                "default_algorithm": hashing_config.get("default_algorithm")
+            }
+            
+        # Add other configurations as needed, e.g., for cryptographic agility preferences if relevant to frontend
+
+        return frontend_pqc_config
+    except PQCCriticalConfigurationError as e:
+        log.error(f"PQC configuration error when accessing /api/pqc_config: {e}")
+        # Re-raise as a FavaAPIError so it's handled by the generic error handler
+        # and returns a proper JSON error response to the client.
+        raise FavaAPIError(f"PQC Configuration Error: {e}") from e
+    except Exception as e:
+        log.error(f"Unexpected error when accessing /api/pqc_config: {e}")
+        raise FavaAPIError(f"Unexpected error fetching PQC configuration: {e}") from e
 
 
 @api_endpoint

@@ -27,6 +27,7 @@ from .exceptions import (
     BundleParsingError,
     CryptoError,
 )
+from .hashers import SHA256HasherImpl, SHA3_256HasherImpl # Added for HashingProvider
 # Import placeholder crypto library helpers for HybridPqcCryptoHandler
 from .crypto_lib_helpers import (
     KEM_LIBRARY,
@@ -330,15 +331,15 @@ class HashingProvider:
     @staticmethod
     def _get_hasher_instance(algorithm_name: str) -> HasherInterface:
         """Internal factory for hasher instances."""
-        # This would map algorithm_name to actual hasher implementations.
-        # For now, placeholder.
-        if algorithm_name == "SHA3-256":
-            # return SHA3_256HasherImpl() # Placeholder
-            raise AlgorithmUnavailableError(f"Hasher for {algorithm_name} not implemented yet.")
-        elif algorithm_name == "SHA256":
-            # return SHA256HasherImpl() # Placeholder
-            raise AlgorithmUnavailableError(f"Hasher for {algorithm_name} not implemented yet.")
+        if algorithm_name.upper() == "SHA3-256":
+            return SHA3_256HasherImpl()
+        elif algorithm_name.upper() == "SHA256":
+            return SHA256HasherImpl()
+        # Add other algorithms as their HasherImpl classes are created
+        # e.g., elif algorithm_name.upper() == "BLAKE2B-256":
+        #           return BLAKE2b256HasherImpl()
         else:
+            logger.error(f"Attempted to get hasher for unsupported algorithm: {algorithm_name}")
             raise AlgorithmUnavailableError(f"Unsupported hash algorithm: {algorithm_name}")
 
 

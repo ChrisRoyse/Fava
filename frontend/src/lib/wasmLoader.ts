@@ -74,7 +74,12 @@ declare global {
 export async function loadBeancountParserWithPQCVerification(
   configOverride?: pqcConfig.PqcWasmConfig
 ): Promise<TreeSitterLanguage | null> {
-  const config: pqcConfig.PqcWasmConfig = configOverride ?? pqcConfig.getFavaPqcWasmConfig();
+  // Get the configuration. If no override, fetch it.
+  const configPromise = configOverride
+    ? Promise.resolve(configOverride)
+    : pqcConfig.getFavaPqcWasmConfig();
+  
+  const config = await configPromise;
 
   if (!config.pqcWasmVerificationEnabled) {
     console.warn('PQC WASM signature verification is DISABLED via configuration. Loading WASM module directly.');

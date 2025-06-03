@@ -1,5 +1,53 @@
+import { sha3_256 } from 'js-sha3';
 // The global OQS object is declared in pqcOqsInterfaces.ts
 // We will access it directly inside the function to ensure test stubs are picked up.
+
+// Type for the hashing part of the PQC config from the API
+interface PqcHashingConfig {
+  default_algorithm?: string;
+}
+
+// Cache for the fetched hashing configuration
+let fetchedHashingConfig: PqcHashingConfig | null = null;
+let hashingConfigFetchPromise: Promise<PqcHashingConfig> | null = null;
+
+async function fetchHashingConfig(): Promise<PqcHashingConfig> {
+  if (fetchedHashingConfig) {
+    return fetchedHashingConfig;
+  }
+  if (hashingConfigFetchPromise) {
+    return hashingConfigFetchPromise;
+  }
+
+  hashingConfigFetchPromise = (async () => {
+    try {
+      const bfileSlugFromGlobal = (window as { FAVA_BEANCUNT_FILE_SLUG?: string }).FAVA_BEANCUNT_FILE_SLUG;
+      const bfileSlug = bfileSlugFromGlobal ?? "default_ledger";
+      const response = await fetch(`/${bfileSlug}/api/pqc_config`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch PQC hashing config: ${String(response.status)} ${errorText}`);
+      }
+      const apiResponse = await response.json() as { data?: { hashing?: PqcHashingConfig } };
+      if (apiResponse.data?.hashing) { // Used optional chaining here
+        fetchedHashingConfig = apiResponse.data.hashing;
+        return fetchedHashingConfig;
+      }
+      console.warn('PQC hashing config not found in API response. Using fallback.');
+      fetchedHashingConfig = { default_algorithm: 'SHA256' }; // Fallback
+      return fetchedHashingConfig;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching PQC hashing config:', message);
+      fetchedHashingConfig = { default_algorithm: 'SHA256' }; // Fallback
+      return fetchedHashingConfig;
+    } finally {
+      hashingConfigFetchPromise = null;
+    }
+  })();
+  return hashingConfigFetchPromise;
+}
+
 
 /**
  * Decodes a Base64 string to a Uint8Array.
@@ -117,4 +165,47 @@ export async function verifyPqcWasmSignature(
     return false;
   }
 }
-// This should be the end of the file.
+
+/**
+ * Calculates the hash of a string using the backend-configured algorithm.
+ * @param data The string data to hash.
+ * @returns A Promise that resolves to the hex-encoded hash string, or null on error.
+ */
+export async function calculateConfiguredHash(data: string): Promise<string | null> {
+    try {
+      const config = await fetchHashingConfig();
+      const algorithm = (config.default_algorithm ?? 'SHA256').toUpperCase();
+  
+      if (typeof data !== 'string') {
+        console.error('Invalid input: data to hash must be a string.');
+        return null;
+      }
+      
+      const encoder = new TextEncoder();
+      const dataBytes = encoder.encode(data);
+  
+      let hashHex: string;
+  
+      switch (algorithm) {
+        case 'SHA3-256':
+          // Assuming js-sha3 is correctly installed and imported
+          hashHex = sha3_256(dataBytes);
+          break;
+        case 'SHA256': { // Added block scope for lexical declaration
+          const hashBuffer = await crypto.subtle.digest('SHA-256', dataBytes);
+          hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+          break;
+        }
+        default:
+          console.error(`Unsupported hashing algorithm configured: ${algorithm}`);
+          return null;
+      }
+      return hashHex;
+    } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error calculating configured hash: ${errorMessage}`);
+    return null;
+  }
+}

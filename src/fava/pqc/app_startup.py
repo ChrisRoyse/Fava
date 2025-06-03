@@ -6,7 +6,8 @@ import logging
 from typing import Dict, Any, Optional
 
 from .global_config import GlobalConfig
-from .backend_crypto_service import BackendCryptoService, HybridPqcCryptoHandler # Add other handlers as they are created
+from .backend_crypto_service import BackendCryptoService, HybridPqcCryptoHandler
+from .gpg_handler import GpgCryptoHandler # Assuming GpgHandler is in this module
 from .exceptions import ApplicationStartupError, CriticalConfigurationError, ConfigurationError
 
 logger = logging.getLogger(__name__)
@@ -57,11 +58,13 @@ def initialize_backend_crypto_service(crypto_settings_file: Optional[str] = None
                 # So, we register the class itself as a factory.
                 BackendCryptoService.register_crypto_handler(suite_id, HybridPqcCryptoHandler)
                 logger.info(f"Registered HybridPqcCryptoHandler factory for suite: {suite_id}")
-            # Example for GPG (if it were a CryptoHandler)
-            # elif suite_type == "CLASSICAL_GPG":
-            #     # from .gpg_handler import GpgCryptoHandler # Hypothetical
-            #     # BackendCryptoService.register_crypto_handler(suite_id, GpgCryptoHandler)
-            #     logger.info(f"Registered GpgCryptoHandler factory placeholder for suite: {suite_id}")
+            elif suite_type == "CLASSICAL_GPG":
+                # Ensure GpgCryptoHandler is a factory or can be registered directly
+                # If GpgCryptoHandler's __init__ matches the factory signature (suite_id, suite_config),
+                # it can be registered directly. Otherwise, a lambda or wrapper factory is needed.
+                # For now, assuming it can be registered as a factory like HybridPqcCryptoHandler.
+                BackendCryptoService.register_crypto_handler(suite_id, GpgCryptoHandler)
+                logger.info(f"Registered GpgCryptoHandler factory for suite: {suite_id}")
             else:
                 logger.warning(f"Unknown crypto suite type '{suite_type}' for suite_id '{suite_id}'. Cannot register handler.")
         except Exception as e: # Catch any error during handler registration setup

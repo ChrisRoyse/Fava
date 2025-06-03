@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { LanguageSupport } from "@codemirror/language";
+  import { calculateConfiguredHash } from "../lib/pqcCrypto"; // Added import
 
   import { doDelete, put } from "../api";
   import { initBeancountEditor } from "../codemirror/setup";
@@ -35,10 +36,19 @@
     event?.preventDefault();
     saving = true;
     try {
+      const newContentHash = await calculateConfiguredHash(currentSlice);
+      if (newContentHash === null) {
+        notify_err(new Error("Failed to calculate content hash before saving."));
+        saving = false;
+        return;
+      }
+      console.info("New content hash:", newContentHash); // Log for now
+
+      // The existing 'sha256sum' prop is the original hash for optimistic concurrency
       sha256sum = await put("source_slice", {
         entry_hash,
         source: currentSlice,
-        sha256sum,
+        sha256sum, // This remains the original hash
       });
       if ($reloadAfterSavingEntrySlice) {
         router.reload();

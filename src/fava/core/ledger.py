@@ -7,9 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Any, Optional, Tuple
 
 from fava.core.fava_options import FavaOptions
+# CryptoServiceLocator might still be used by other methods or for GPG if not fully integrated into agility
 from fava.crypto.locator import CryptoServiceLocator
-from fava.crypto import keys as fava_keys # For key derivation/loading
-from fava.crypto import exceptions as crypto_exceptions # For custom exceptions
+from fava.crypto import keys as fava_keys
+from fava.crypto import exceptions as crypto_exceptions
+from fava.pqc.backend_crypto_service import decrypt_data_at_rest_with_agility, BackendCryptoService # Added for PQC
+from fava.pqc.exceptions import DecryptionError as PQCDecryptionError # Added for PQC
 
 # Mocked in tests, but define for real use or type checking if needed
 def PROMPT_USER_FOR_PASSPHRASE_SECURELY(prompt: str) -> str:
@@ -158,24 +161,44 @@ class FavaLedger:
         context = key_context if key_context else file_path
         key_material_encrypt = self._get_key_material_for_operation(context, "encrypt")
         active_suite_id = self.fava_options.pqc_active_suite_id
-        suite_config = self.fava_options.pqc_suites.get(active_suite_id)
-        if not suite_config:
-            raise crypto_exceptions.ConfigurationError(f"Active PQC suite '{active_suite_id}' not found.")
+        # The active suite_id is used by the handler, but the handler itself is fetched via BCS
+        # The suite_config from FavaOptions is passed to the handler's encrypt method.
+        active_suite_config_for_handler = self.fava_options.pqc_suites.get(active_suite_id)
+        if not active_suite_config_for_handler:
+            raise crypto_exceptions.ConfigurationError(f"PQC suite configuration for active suite '{active_suite_id}' not found in FavaOptions.")
 
-        handler = self.crypto_service_locator.get_pqc_encrypt_handler(suite_config, self.fava_options)
-        if not handler:
-            raise crypto_exceptions.CryptoError("No PQC encryption handler found.")
+        try:
+            # BackendCryptoService.get_active_encryption_handler() internally uses GlobalConfig
+            # which should be initialized by now (via app_startup.py).
+            handler = BackendCryptoService.get_active_encryption_handler()
+        except (crypto_exceptions.ConfigurationError, crypto_exceptions.CryptoError) as e: # Broader catch for BCS issues
+             raise crypto_exceptions.ConfigurationError(f"Failed to get active PQC encryption handler: {e}") from e
         
-        if not hasattr(handler, 'encrypt_content') or not callable(handler.encrypt_content):
-            raise crypto_exceptions.CryptoError(f"Handler {getattr(handler, 'name', type(handler).__name__)} has no callable encrypt_content method.")
+        if not handler: # Should be caught by the exception above, but as a safeguard
+            raise crypto_exceptions.CryptoError("No active PQC encryption handler could be retrieved via BackendCryptoService.")
+        
+        # Ensure the handler has the 'encrypt' method as expected by its interface
+        if not hasattr(handler, 'encrypt') or not callable(handler.encrypt):
+            raise crypto_exceptions.CryptoError(f"Handler for suite '{handler.get_suite_id()}' has no callable encrypt method.")
 
-        encrypted_bytes = handler.encrypt_content(
-            plaintext_content,
-            suite_config,
-            key_material_encrypt,
-            self.fava_options
+        # Convert plaintext string to bytes
+        plaintext_bytes = plaintext_content.encode('utf-8')
+
+        # The encrypt method returns a HybridEncryptedBundle (a dict)
+        encrypted_bundle = handler.encrypt(
+            plaintext_bytes,
+            key_material_encrypt, # This is KeyMaterialForEncryption
+            suite_specific_config=active_suite_config_for_handler
         )
-        WRITE_BYTES_TO_FILE(file_path, encrypted_bytes)
+        
+        # The bundle needs to be serialized (e.g., to JSON string bytes) before writing to file
+        try:
+            import json
+            encrypted_file_content_bytes = json.dumps(encrypted_bundle, indent=2).encode('utf-8')
+        except TypeError as e:
+            raise crypto_exceptions.CryptoError(f"Failed to serialize encrypted bundle to JSON: {e}") from e
+        
+        WRITE_BYTES_TO_FILE(file_path, encrypted_file_content_bytes)
 
     def load_file(self, file_path: str) -> Tuple[Any, Any, Any]: # Mimics Beancount load return
         """
@@ -183,41 +206,67 @@ class FavaLedger:
         If decryption fails or no handler, attempts to load as plaintext.
         """
         file_content_bytes = READ_BYTES_FROM_FILE(file_path)
-        
-        # Try to determine if it's a PQC or GPG file and decrypt
         decrypted_source: Optional[str] = None
-        peek_bytes = file_content_bytes[:128] # Arbitrary peek size
-        
-        handler = self.crypto_service_locator.get_handler_for_file(file_path, peek_bytes, self.fava_options)
 
-        if handler:
+        # Attempt PQC decryption with agility first if enabled
+        if self.fava_options.pqc_data_at_rest_enabled: # Check if PQC is generally enabled
             try:
-                decrypted_source = self._try_decrypt_content(file_path, file_content_bytes)
-            except crypto_exceptions.CryptoError as e: # Catch our specific crypto errors
-                log.warning(f"Decryption attempt failed for {file_path}: {e}. Attempting plaintext load.")
-                decrypted_source = None # Ensure it's None to fall through to plaintext
-            except Exception as e: # Catch other unexpected errors
-                log.error(f"Unexpected error during decryption of {file_path}: {e}. Attempting plaintext load.")
+                log.debug(f"Attempting PQC decryption with agility for {file_path}")
+                key_material = self._get_key_material_for_operation(file_path, "decrypt")
+                # BackendCryptoService might need to be initialized or accessed via a global/app context
+                # For now, assuming decrypt_data_at_rest_with_agility is a static/classmethod
+                # or BackendCryptoService is readily available.
+                # The provided backend_crypto_service.py shows it as a static/classmethod.
+                decrypted_bytes = decrypt_data_at_rest_with_agility(file_content_bytes, key_material)
+                decrypted_source = decrypted_bytes.decode('utf-8')
+                log.info(f"Successfully decrypted {file_path} using PQC agility.")
+            except PQCDecryptionError as e:
+                log.warning(f"PQC decryption with agility failed for {file_path}: {e}. Will try legacy or plaintext.")
                 decrypted_source = None
+            except crypto_exceptions.ConfigurationError as e: # Catch key material or config issues
+                log.warning(f"Configuration error during PQC decryption for {file_path}: {e}. Will try legacy or plaintext.")
+                decrypted_source = None
+            except Exception as e:
+                log.error(f"Unexpected error during PQC decryption for {file_path}: {e}. Will try legacy or plaintext.")
+                decrypted_source = None
+        
+        # If PQC is not enabled, or PQC decryption failed, try legacy GPG or plaintext
+        if decrypted_source is None:
+            # Try legacy GPG handler if PQC didn't handle it or failed
+            # This part reuses some of the older logic if PQC fails or is not applicable
+            peek_bytes = file_content_bytes[:128]
+            legacy_handler = self.crypto_service_locator.get_handler_for_file(file_path, peek_bytes, self.fava_options)
 
-
-        source_to_parse: str
-        if decrypted_source is not None:
-            source_to_parse = decrypted_source
-            log.info(f"Successfully decrypted and loaded PQC/GPG encrypted file: {file_path}")
+            if legacy_handler and hasattr(legacy_handler, 'decrypt_content'):
+                # We need to ensure this legacy_handler is not the HybridPqcHandler again if PQC was already tried.
+                # This check might need refinement if HybridPqcHandler is in the default list for CryptoServiceLocator
+                # and pqc_data_at_rest_enabled was true but failed.
+                # For now, assume get_handler_for_file might return GpgHandler.
+                # A more robust check: if isinstance(legacy_handler, GpgHandler):
+                log.debug(f"Attempting decryption with legacy handler {getattr(legacy_handler, 'name', type(legacy_handler).__name__)} for {file_path}")
+                try:
+                    # _try_decrypt_content uses the handler's decrypt_content
+                    decrypted_source = self._try_decrypt_content(file_path, file_content_bytes)
+                    if decrypted_source:
+                        log.info(f"Successfully decrypted {file_path} using legacy handler {getattr(legacy_handler, 'name', type(legacy_handler).__name__)}.")
+                except crypto_exceptions.CryptoError as e:
+                    log.warning(f"Legacy decryption attempt for {file_path} failed: {e}.")
+                    decrypted_source = None
+                except Exception as e:
+                    log.error(f"Unexpected error during legacy decryption of {file_path}: {e}.")
+                    decrypted_source = None
+            
+            if decrypted_source is None:
+                # If all decryption attempts fail or no handler matched, try plaintext
+                try:
+                    source_to_parse = file_content_bytes.decode('utf-8')
+                    log.info(f"Loading file as plaintext: {file_path} (PQC/legacy decryption failed or not applicable).")
+                except UnicodeDecodeError:
+                    log.error(f"Failed to decode file as UTF-8 and all crypto handling failed for: {file_path}")
+                    raise crypto_exceptions.FileLoadError(f"Cannot load file: Not valid UTF-8 and crypto handling failed for {file_path}")
+            else:
+                source_to_parse = decrypted_source
         else:
-            # If no handler or decryption failed/skipped, try to decode as UTF-8 plaintext
-            try:
-                source_to_parse = file_content_bytes.decode('utf-8')
-                log.info(f"Loading file as plaintext: {file_path}")
-            except UnicodeDecodeError:
-                log.error(f"Failed to decode file as UTF-8 and no crypto handler matched or decryption failed: {file_path}")
-                # What to do here? Raise an error, or return empty ledger?
-                # For now, let parse_beancount_file_from_source handle potentially bad source.
-                # Or, we could raise a specific FavaLoadError.
-                raise crypto_exceptions.FileLoadError(f"Cannot load file: Not valid UTF-8 and crypto handling failed for {file_path}")
+            source_to_parse = decrypted_source
 
-        # Parse the (potentially decrypted) source content
-        # The actual parse_beancount_file_from_source is complex and involves beancount.loader
-        # For tests, this will be mocked.
         return parse_beancount_file_from_source(source_to_parse, self.fava_options, file_path)
