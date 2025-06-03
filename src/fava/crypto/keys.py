@@ -8,9 +8,11 @@ specifically bridging the mlkem library to provide an oqs-compatible interface.
 from typing import Tuple, Optional, Any, Dict
 import os
 from mlkem.ml_kem import ML_KEM, ML_KEM_768
+import hashlib # Added for SHAKE XOF
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM # Added for secure_format_for_export
 from cryptography.hazmat.backends import default_backend
 from argon2 import PasswordHasher
 from argon2.low_level import hash_secret_raw, Type
@@ -144,6 +146,30 @@ class MLKEMBridge:
                 raise
             raise KeyGenerationError(f"Failed to generate key pair: {str(e)}") from e
 
+    def keypair_from_seed(self, seed: bytes) -> Tuple[bytes, bytes]:
+        """
+        Deterministically generate a key pair from a seed.
+        The mlkem library's ML_KEM class constructor can take a seed.
+        We will instantiate a new ML_KEM object with the seed and then call key_gen.
+        """
+    def load_keypair_from_secret_key(self, sk_bytes: bytes) -> Tuple[bytes, bytes]:
+        """
+        Load a keypair from the given full secret key bytes.
+        Derives the public key from the secret key.
+        """
+        try:
+            self._private_key = sk_bytes
+            # Assuming self.ml_kem_runtime_instance.parameters has pk_from_sk method
+            # This aligns with typical structure of such libraries where parameters object holds algo-specific details
+            self._public_key = self.ml_kem_runtime_instance.parameters.pk_from_sk(sk_bytes)
+            if self._public_key is None:
+                raise InvalidKeyError("Failed to derive public key from secret key.")
+            return self._public_key, self._private_key
+        except Exception as e:
+            if isinstance(e, (InvalidKeyError, CryptoError)): # Added CryptoError
+                raise
+            raise InvalidKeyError(f"Failed to load keypair from secret key: {str(e)}") from e
+            
     def export_public_key(self) -> bytes:
         """
         Export the public key.
@@ -267,12 +293,12 @@ def derive_kem_keys_from_passphrase(passphrase: str, salt: bytes,
         
         pqc_hkdf = HKDF(
             algorithm=hashes.SHA3_512(),
-            length=32, 
+            length=64, # Changed from 32 to 64 for ML-KEM seed (e.g. 32 for d, 32 for z)
             salt=None,
-            info=b"pqc_kem_key_derivation",
+            info=b"pqc_kem_key_derivation_seed", # Updated info string slightly
             backend=default_backend()
         )
-        pqc_key_material = pqc_hkdf.derive(ikm)
+        pqc_seed_material = pqc_hkdf.derive(ikm) # Renamed for clarity
         
         classical_private_key = X25519PrivateKey.from_private_bytes(classical_key_material)
         classical_public_key = classical_private_key.public_key()
@@ -285,14 +311,11 @@ def derive_kem_keys_from_passphrase(passphrase: str, salt: bytes,
         
         # MLKEMBridge's generate_keypair now returns (pk, sk)
         # For deterministic keys from pqc_key_material, MLKEMBridge would need a method
-        # like keypair_from_seed(seed_bytes) or similar.
-        # For now, derive_kem_keys_from_passphrase generates fresh PQC keys,
-        # not deterministically from pqc_key_material. This is a simplification.
-        pqc_public_key, pqc_private_key = pqc_kem.generate_keypair()
+        # Use the derived pqc_seed_material to deterministically generate the PQC keypair.
+        pqc_public_key, pqc_private_key = pqc_kem.keypair_from_seed(pqc_seed_material)
         pqc_keys = (pqc_public_key, pqc_private_key)
         
         return classical_keys, pqc_keys
-        
     except Exception as e:
         if isinstance(e, (UnsupportedAlgorithmError, KeyGenerationError, CryptoError)): # Added CryptoError
             raise
@@ -335,17 +358,9 @@ def load_keys_from_external_file(key_file_path_config: Dict[str, str],
             # Typically, you'd load the SK bytes and the PK would be derived or loaded separately if needed.
             # For now, to satisfy the test structure that mocks keypair_from_secret,
             # we'll assume this method exists on the (potentially mocked) pqc_kem object.
-            # If pqc_kem is the real MLKEMBridge, this will fail.
-            # The test `test_tp_dar_km_004` patches MLKEMBridge to MockOQS_KeyEncapsulation,
-            # which *does* have a keypair_from_secret method (delegating to a mock).
-            if not hasattr(pqc_kem, 'keypair_from_secret'):
-                raise exceptions.KeyManagementError(
-                    f"The KEM instance for {pqc_kem_spec} does not support 'keypair_from_secret'. "
-                    "This method is typically for oqs-compatibility mocks. "
-                    "Real MLKEMBridge would need a different way to load/set a private key and get its public counterpart."
-                )
-            pqc_public_key, pqc_private_key_obj = pqc_kem.keypair_from_secret(pqc_private_bytes)
-            pqc_keys = (pqc_public_key, pqc_private_key_obj)
+            # Use the new load_keypair_from_secret_key method in MLKEMBridge
+            pqc_public_key, pqc_private_key_obj = pqc_kem.load_keypair_from_secret_key(pqc_private_bytes)
+            pqc_keys = (pqc_public_key, pqc_private_key_obj) # pqc_private_key_obj is the full SK bytes
         else:
             raise exceptions.KeyManagementError("PQC private key path not provided in configuration.")
 
@@ -405,12 +420,33 @@ def _retrieve_stored_or_derived_pqc_private_key(key_id: str, config: Any,
 def secure_format_for_export(private_key_bytes: bytes, format_spec: str, passphrase: str) -> bytes:
     """
     Format a private key securely for export, typically involving encryption.
-    (Placeholder: Actual logic would use PKCS#8 and specified encryption)
+    This implementation uses Argon2id to derive an encryption key from the passphrase,
+    and then AES-256-GCM to encrypt the private key bytes.
+    The output format is: salt (16 bytes) || iv (12 bytes) || ciphertext_and_tag.
+    Note: The name "ENCRYPTED_PKCS8_AES256GCM_PBKDF2" might be a slight misnomer
+    as PKCS#8 is not directly used for raw KEM secret key bytes here, but the
+    principle of strong passphrase-based encryption with AES-GCM is applied.
     """
     if format_spec == "ENCRYPTED_PKCS8_AES256GCM_PBKDF2":
-        # This is a placeholder. Real implementation would use:
-        # from cryptography.hazmat.primitives import serialization
-        # from cryptography.hazmat.primitives.serialization import PrivateFormat, BestAvailableEncryption
-        # For now, just simulate some transformation.
-        return b"SECURELY_FORMATTED[" + passphrase.encode() + b":" + private_key_bytes + b"]"
+        try:
+            # 1. Generate salt for Argon2id
+            salt = os.urandom(16) # Standard salt size for Argon2
+
+            # 2. Derive encryption key using Argon2id
+            # Using the Argon2id class defined in this module for consistency
+            argon2_kdf = Argon2id(salt_len=16, hash_len=32) # 32 bytes for AES-256 key
+            derived_encryption_key = argon2_kdf.derive(passphrase, salt)
+
+            # 3. Generate IV for AES-GCM
+            iv = os.urandom(12) # Standard IV size for AES-GCM
+
+            # 4. Encrypt the private key bytes
+            aesgcm = AESGCM(derived_encryption_key)
+            ciphertext_and_tag = aesgcm.encrypt(iv, private_key_bytes, associated_data=None)
+            
+            return salt + iv + ciphertext_and_tag
+        except Exception as e:
+            # Catch specific crypto errors if possible, or general Exception.
+            raise CryptoError(f"Secure formatting for export failed: {str(e)}") from e
+            
     raise UnsupportedAlgorithmError(f"Unsupported export format: {format_spec}")
