@@ -1,83 +1,115 @@
 import pytest
+import logging
+from fava.pqc.app_startup import initialize_backend_crypto_service
+from fava.pqc.global_config import GlobalConfig
+from fava.pqc.backend_crypto_service import BackendCryptoService, HybridPqcCryptoHandler
+from fava.pqc.exceptions import ApplicationStartupError, CriticalConfigurationError, ConfigurationError
+from fava.pqc.interfaces import CryptoHandler
 
-# Placeholder for imports
-# from fava.app_startup import InitializeBackendCryptoService # Conceptual
-# from fava.pqc.global_config import GlobalConfig
-# from fava.pqc.backend_crypto_service import BackendCryptoService
-# from fava.exceptions import ApplicationStartupError, CriticalConfigurationError
 
-@pytest.mark.skip(reason="Test stub for PQC Cryptographic Agility - Initialization")
+# Paths for patching
+GLOBAL_CONFIG_APP_STARTUP_PATH = "fava.pqc.app_startup.GlobalConfig"
+BACKEND_SERVICE_APP_STARTUP_PATH = "fava.pqc.app_startup.BackendCryptoService"
+
 class TestInitializationAndRegistrationFlow:
     """
     Test suite for Initialization and Registration Flow (Backend - Integration Style)
-    as per docs/test-plans/PQC_Cryptographic_Agility_Test_Plan.md section 5.4
     """
+    def setup_method(self):
+        GlobalConfig.reset_cache()
+        BackendCryptoService.reset_registry_for_testing()
 
-    @pytest.mark.tags("@critical_path", "@config_dependent", "@backend")
-    def test_tc_agl_init_001_app_startup_registers_valid_handlers(self, mocker):
+
+    @pytest.mark.critical_path
+    @pytest.mark.config_dependent
+    @pytest.mark.backend
+    def test_tc_agl_init_001_app_startup_registers_valid_handlers(self, mocker, caplog):
         """
         TC_AGL_INIT_001: Verify app startup registers all valid crypto handlers from config.
         Covers TDD Anchor: test_app_startup_registers_all_valid_handlers_from_config_suites()
         """
-        # mock_global_config = mocker.patch("fava.app_startup.GlobalConfig") # Adjust path
-        # mock_backend_service_register = mocker.spy(BackendCryptoService, "RegisterCryptoHandler") # Path to actual class
+        caplog.set_level(logging.INFO)
+        mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_APP_STARTUP_PATH}.get_crypto_settings")
+        # We spy on the class method directly
+        spy_register_handler = mocker.spy(BackendCryptoService, "register_crypto_handler")
         
-        # mock_global_config.GetCryptoSettings.return_value = {
-        #     "data_at_rest": {
-        #         "suites": {
-        #             "SUITE_HYBRID": {"type": "HybridPqcCryptoHandler", "...": "..." },
-        #             "SUITE_GPG_MOCK": {"type": "GpgMockHandler", "...": "..."} 
-        #             # Assuming type indicates factory or class to use
-        #         },
-        #         "active_encryption_suite_id": "SUITE_HYBRID", # Needed for GetActiveEncryptionHandler to not fail later
-        #         "decryption_attempt_order": ["SUITE_HYBRID", "SUITE_GPG_MOCK"]
-        #     }
-        # }
+        mock_active_handler_instance = mocker.Mock(spec=CryptoHandler)
+        mock_active_handler_instance.get_suite_id.return_value = "SUITE_HYBRID_ACTIVE"
+
+        # Mock GetActiveEncryptionHandler to return a mock, assuming SUITE_HYBRID_ACTIVE is valid
+        mock_get_active = mocker.patch.object(BackendCryptoService, "get_active_encryption_handler")
+        mock_get_active.return_value = mock_active_handler_instance
+
+        mock_global_config_get.return_value = {
+            "data_at_rest": {
+                "suites": {
+                    "SUITE_HYBRID_ACTIVE": {"type": "FAVA_HYBRID_PQC", "param": "val1"},
+                    "SUITE_OTHER_HYBRID": {"type": "FAVA_HYBRID_PQC", "param": "val2"},
+                    "SUITE_UNKNOWN_TYPE": {"type": "UNKNOWN", "param": "val3"}
+                },
+                "active_encryption_suite_id": "SUITE_HYBRID_ACTIVE",
+                "decryption_attempt_order": ["SUITE_HYBRID_ACTIVE"] # Minimal valid order
+            }
+        }
         
-        # # Mock or provide actual (mockable) handler classes/factories
-        # # For simplicity, assume BackendCryptoService.RegisterCryptoHandler is spied on
-        # # and the InitializeBackendCryptoService logic correctly instantiates/gets factories.
+        initialize_backend_crypto_service()
 
-        # # Mock GetActiveEncryptionHandler to prevent it from failing if SUITE_HYBRID is not fully mocked for it
-        # mock_get_active = mocker.patch("fava.pqc.backend_crypto_service.BackendCryptoService.GetActiveEncryptionHandler")
-        # mock_get_active.return_value = mocker.Mock()
-
-
-        # InitializeBackendCryptoService() # Conceptual function call
-
-        # mock_global_config.GetCryptoSettings.assert_called_once()
+        mock_global_config_get.assert_called_once()
         
-        # # Check calls to RegisterCryptoHandler
-        # # This requires careful setup of how InitializeBackendCryptoService discovers and registers handlers
-        # # For a spy, you'd check call_args_list
-        # calls = mock_backend_service_register.call_args_list
-        # registered_suites = {call[0][0] for call in calls} # Assuming suite_id is the first arg
-        # assert "SUITE_HYBRID" in registered_suites
-        # assert "SUITE_GPG_MOCK" in registered_suites
-        pytest.fail("Test not implemented")
+        # Check calls to RegisterCryptoHandler
+        # Expected calls: (suite_id, factory_class)
+        # The factory_class for FAVA_HYBRID_PQC is HybridPqcCryptoHandler
+        
+        # Check that SUITE_HYBRID_ACTIVE was registered with HybridPqcCryptoHandler factory
+        call_args_active = next(
+            call for call in spy_register_handler.call_args_list
+            if call[0][0] == "SUITE_HYBRID_ACTIVE"
+        )
+        assert call_args_active[0][1] is HybridPqcCryptoHandler
+        assert "Registered HybridPqcCryptoHandler factory for suite: SUITE_HYBRID_ACTIVE" in caplog.text
 
-    @pytest.mark.tags("@critical_path", "@error_handling", "@config_dependent", "@backend")
-    def test_tc_agl_init_002_app_startup_fails_if_active_handler_load_fails(self, mocker):
+        # Check that SUITE_OTHER_HYBRID was registered
+        call_args_other = next(
+            call for call in spy_register_handler.call_args_list
+            if call[0][0] == "SUITE_OTHER_HYBRID"
+        )
+        assert call_args_other[0][1] is HybridPqcCryptoHandler
+        assert "Registered HybridPqcCryptoHandler factory for suite: SUITE_OTHER_HYBRID" in caplog.text
+
+        # Check warning for unknown type
+        assert "Unknown crypto suite type 'UNKNOWN' for suite_id 'SUITE_UNKNOWN_TYPE'" in caplog.text
+        
+        # Check active handler loading success
+        mock_get_active.assert_called_once()
+        assert "Active encryption handler 'SUITE_HYBRID_ACTIVE' successfully loaded." in caplog.text
+        assert "PQC Backend Crypto Service initialized successfully." in caplog.text
+
+
+    @pytest.mark.critical_path
+    @pytest.mark.error_handling
+    @pytest.mark.config_dependent
+    @pytest.mark.backend
+    def test_tc_agl_init_002_app_startup_fails_if_active_handler_load_fails(self, mocker, caplog):
         """
         TC_AGL_INIT_002: Verify app startup fails if active encryption handler cannot be loaded.
         Covers TDD Anchor: test_app_startup_throws_critical_error_if_active_encryption_handler_cannot_be_loaded_after_registration()
         """
-        # mock_global_config = mocker.patch("fava.app_startup.GlobalConfig")
-        # mock_get_active_handler = mocker.patch("fava.pqc.backend_crypto_service.BackendCryptoService.GetActiveEncryptionHandler")
+        caplog.set_level(logging.CRITICAL)
+        mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_APP_STARTUP_PATH}.get_crypto_settings")
+        
+        # Mock GetActiveEncryptionHandler to simulate failure
+        mock_get_active_handler = mocker.patch.object(BackendCryptoService, "get_active_encryption_handler")
+        mock_get_active_handler.side_effect = CriticalConfigurationError("Mocked: Active handler load failed from GetActive")
 
-        # mock_global_config.GetCryptoSettings.return_value = {
-        #     "data_at_rest": {
-        #         "suites": {}, # No handlers to register, or some irrelevant ones
-        #         "active_encryption_suite_id": "ACTIVE_BUT_FAIL_LOAD"
-        #     }
-        # }
-        # # Ensure GetActiveEncryptionHandler is called after the (empty) registration loop
-        # # and it's the one that throws the error.
-        # mock_get_active_handler.side_effect = CriticalConfigurationError("Mocked: Active handler load failed")
+        mock_global_config_get.return_value = {
+            "data_at_rest": {
+                "suites": {}, # No specific handlers needed for this test, focus on active handler failure
+                "active_encryption_suite_id": "ACTIVE_BUT_WILL_FAIL_LOAD"
+            }
+        }
 
-        # with pytest.raises(ApplicationStartupError): # Or the specific error raised by InitializeBackendCryptoService
-        #     InitializeBackendCryptoService()
+        with pytest.raises(ApplicationStartupError, match="Critical failure: Active PQC encryption handler unavailable: Mocked: Active handler load failed from GetActive"):
+            initialize_backend_crypto_service()
 
-        # mock_get_active_handler.assert_called_once()
-        # Check for log "Failed to load active encryption handler..."
-        pytest.fail("Test not implemented")
+        mock_get_active_handler.assert_called_once()
+        assert "Failed to load active PQC encryption handler post-registration: Mocked: Active handler load failed from GetActive" in caplog.text

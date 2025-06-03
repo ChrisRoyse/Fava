@@ -68,7 +68,6 @@ excel =[
     "pyexcel-xlsx>=0.5",
 ]
 
-[dependency-groups]
 # Building the documentation website with sphinx.
 docs = [
     "furo>=2024",
@@ -102,12 +101,14 @@ test = [
     "pytest-cov>=6",
     "pytest>=8",
     "setuptools>=67",
+    "pytest-mock>=3.10.0",
+    "pytest-asyncio>=0.21.0",
 ]
 # Stuff for the dev environment.
 dev = [
-    { include-group = "mypy" },
-    { include-group = "pre-commit" },
-    { include-group = "test" },
+    "fava[mypy]", # Assuming mypy is an extra defined above
+    "fava[pre-commit]", # Assuming pre-commit is an extra
+    "fava[test]", # Assuming test is an extra
     "ruff>=0.11",
 ]
 
@@ -164,10 +165,14 @@ markers = [
     "security_sensitive: tests for security-sensitive operations",
     "performance_smoke: basic performance validation tests",
     "gpg_compatibility: tests for GPG compatibility features",
+    "backend: tests for backend components",
+    "frontend: tests for frontend components (Python conceptual tests)",
+    "api_driven: frontend tests relying on backend API responses",
+    "suite_specific_HYBRID_TEST: tests for a specific hybrid suite handler",
+    "asyncio: marks tests as asynchronous (requires pytest-asyncio)",
 ]
 
 [tool.coverage.run]
-branch = true
 omit = [
     "*/fava/beans/types.py",
     "*/fava/ext/auto_commit.py",

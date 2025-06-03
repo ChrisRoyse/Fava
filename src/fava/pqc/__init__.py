@@ -1,10 +1,75 @@
 # src/fava/pqc/__init__.py
-# This file makes the 'pqc' directory a Python package.
+"""
+Fava Post-Quantum Cryptography (PQC) Agility Package.
 
-# Optionally, you can import key components here to make them available
-# directly from the package, e.g.:
-# from .proxy_awareness import determine_effective_pqc_status
-# from .documentation_generator import generate_pqc_tls_reverse_proxy_config_guide
-# from .configuration_validator import validate_pqc_tls_embedded_server_options
+This package provides the framework for cryptographic agility within Fava,
+allowing for configurable and updatable cryptographic algorithms.
+"""
 
-# For now, keeping it simple. Specific modules can be imported directly.
+from .exceptions import (
+    PQCError,
+    CriticalConfigurationError,
+    ConfigurationError,
+    ParsingError,
+    AlgorithmNotFoundError,
+    AlgorithmUnavailableError,
+    InvalidArgumentError,
+    DecryptionError,
+    EncryptionFailedError,
+    HashingOperationFailedError,
+    ApplicationStartupError,
+    BundleParsingError,
+    CryptoError,
+)
+from .global_config import GlobalConfig
+from .interfaces import (
+    CryptoHandler,
+    HybridEncryptedBundle,
+    KeyMaterialForEncryption,
+    KeyMaterialForDecryption,
+    HasherInterface,
+)
+from .backend_crypto_service import (
+    BackendCryptoService,
+    HybridPqcCryptoHandler,
+    HashingProvider,
+    decrypt_data_at_rest_with_agility,
+    parse_common_encrypted_bundle_header,
+)
+from .frontend_crypto_facade import FrontendCryptoFacade
+from .app_startup import initialize_backend_crypto_service
+
+__all__ = [
+    # Exceptions
+    "PQCError",
+    "CriticalConfigurationError",
+    "ConfigurationError",
+    "ParsingError",
+    "AlgorithmNotFoundError",
+    "AlgorithmUnavailableError",
+    "InvalidArgumentError",
+    "DecryptionError",
+    "EncryptionFailedError",
+    "HashingOperationFailedError",
+    "ApplicationStartupError",
+    "BundleParsingError",
+    "CryptoError",
+    # Global Config
+    "GlobalConfig",
+    # Interfaces
+    "CryptoHandler",
+    "HybridEncryptedBundle",
+    "KeyMaterialForEncryption",
+    "KeyMaterialForDecryption",
+    "HasherInterface",
+    # Backend Service
+    "BackendCryptoService",
+    "HybridPqcCryptoHandler",
+    "HashingProvider",
+    "decrypt_data_at_rest_with_agility",
+    "parse_common_encrypted_bundle_header",
+    # Frontend Facade (conceptual Python representation)
+    "FrontendCryptoFacade",
+    # App Startup
+    "initialize_backend_crypto_service",
+]

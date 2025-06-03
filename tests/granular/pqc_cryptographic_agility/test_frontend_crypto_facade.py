@@ -1,169 +1,180 @@
 import pytest
+import logging
+from fava.pqc.frontend_crypto_facade import FrontendCryptoFacade
+from fava.pqc.exceptions import (
+    ConfigurationError,
+    HashingOperationFailedError,
+    AlgorithmUnavailableError,
+    CryptoError
+)
 
-# Placeholder for imports from Frontend application (conceptual Python representation)
-# from fava.frontend.crypto_facade import FrontendCryptoFacade # Assuming path
-# Mock objects for HTTP_GET_JSON, GET_SYSTEM_TIME_MS, _internalCalculateHash, etc.
+# Paths for patching helpers used by FrontendCryptoFacade
+HTTP_CLIENT_PATH = "fava.pqc.frontend_crypto_facade.HTTP_CLIENT"
+SYSTEM_TIME_PATH = "fava.pqc.frontend_crypto_facade.SYSTEM_TIME"
+JS_SHA256_PATH = "fava.pqc.frontend_crypto_facade.JS_CRYPTO_SHA256"
+JS_SHA3_256_PATH = "fava.pqc.frontend_crypto_facade.JS_CRYPTO_SHA3_256"
+LIBOQS_JS_PATH = "fava.pqc.frontend_crypto_facade.LIBOQS_JS"
+FRONTEND_UTILS_PATH = "fava.pqc.frontend_crypto_facade.FRONTEND_UTILS"
 
-@pytest.mark.skip(reason="Test stub for PQC Cryptographic Agility - Frontend CryptoFacade")
+
+@pytest.mark.asyncio # For async test methods
 class TestFrontendCryptoFacade:
     """
     Test suite for FrontendCryptoFacade
-    as per docs/test-plans/PQC_Cryptographic_Agility_Test_Plan.md section 5.3
-    Note: These are Python stubs for conceptual frontend logic.
-    In a real JS/TS frontend, Vitest/Jest would be used.
     """
+    def setup_method(self):
+        FrontendCryptoFacade.reset_cache_for_testing()
 
-    @pytest.mark.tags("@critical_path", "@frontend", "@api_driven")
-    def test_tc_agl_fcf_api_001_get_fava_runtime_crypto_options_caching(self, mocker):
-        """
-        TC_AGL_FCF_API_001: Verify _getFavaRuntimeCryptoOptions fetches from API and uses cache.
-        Covers TDD Anchors: test_fe_get_runtime_options_fetches_from_api_if_cache_empty_or_stale(),
-                           test_fe_get_runtime_options_returns_cached_data_if_fresh()
-        """
-        # mock_http_get = mocker.patch("fava.frontend.crypto_facade.HTTP_GET_JSON") # Adjust path
-        # mock_get_time = mocker.patch("fava.frontend.crypto_facade.GET_SYSTEM_TIME_MS")
+    @pytest.mark.critical_path
+    @pytest.mark.frontend
+    @pytest.mark.api_driven
+    async def test_tc_agl_fcf_api_001_get_fava_runtime_crypto_options_caching(self, mocker, caplog):
+        caplog.set_level(logging.INFO)
+        mock_http_get = mocker.patch(f"{HTTP_CLIENT_PATH}.http_get_json")
+        mock_get_time = mocker.patch(f"{SYSTEM_TIME_PATH}.get_system_time_ms")
         
-        # mock_api_response = {"crypto_settings": {"hashing": {"default_algorithm": "SHA3-256"}}}
-        # mock_http_get.return_value = mock_api_response
+        mock_api_response = {"crypto_settings": {"hashing": {"default_algorithm": "SHA3-256"}}}
+        # Make http_get_json an async mock
+        async_mock_http_get = mocker.AsyncMock(return_value=mock_api_response)
+        mock_http_get.side_effect = async_mock_http_get # Assign the async mock to the side_effect
         
-        # facade = FrontendCryptoFacade() # Assuming instantiation
-        # facade._favaConfigCache = None # Reset cache for test
-        # facade.CONFIG_CACHE_TTL_MS = 1000 # Set a TTL
+        FrontendCryptoFacade.CONFIG_CACHE_TTL_MS = 1000
 
-        # # Cache Empty
-        # mock_get_time.return_value = 0
-        # config1 = facade._getFavaRuntimeCryptoOptions()
-        # mock_http_get.assert_called_once_with("/api/fava-crypto-configuration")
-        # assert config1 == mock_api_response["crypto_settings"]
-        # assert facade._favaConfigCache["timestamp"] == 0
-        # assert facade._favaConfigCache["data"] == mock_api_response["crypto_settings"]
+        # Cache Empty
+        mock_get_time.return_value = 0
+        config1 = await FrontendCryptoFacade._get_fava_runtime_crypto_options()
+        async_mock_http_get.assert_called_once_with("/api/fava-crypto-configuration")
+        assert config1 == mock_api_response["crypto_settings"]
+        assert FrontendCryptoFacade._config_cache_timestamp == 0
+        assert FrontendCryptoFacade._fava_config_cache == mock_api_response["crypto_settings"]
+        assert "Frontend fetched and cached Fava crypto configuration." in caplog.text
+        caplog.clear()
 
-        # # Cache Fresh
-        # mock_get_time.return_value = 500 # Still within TTL
-        # config2 = facade._getFavaRuntimeCryptoOptions()
-        # mock_http_get.assert_called_once() # Should not be called again
-        # assert config2 == mock_api_response["crypto_settings"]
+        # Cache Fresh
+        mock_get_time.return_value = 500
+        config2 = await FrontendCryptoFacade._get_fava_runtime_crypto_options()
+        async_mock_http_get.assert_called_once() # Still once
+        assert config2 == mock_api_response["crypto_settings"]
+        assert not caplog.text # No new fetch log
 
-        # # Cache Stale
-        # mock_get_time.return_value = 1500 # Exceeds TTL
-        # config3 = facade._getFavaRuntimeCryptoOptions()
-        # assert mock_http_get.call_count == 2 # Called again
-        # assert config3 == mock_api_response["crypto_settings"]
-        pytest.fail("Test not implemented")
+        # Cache Stale
+        mock_get_time.return_value = 1500
+        config3 = await FrontendCryptoFacade._get_fava_runtime_crypto_options()
+        assert async_mock_http_get.call_count == 2 # Called again
+        assert config3 == mock_api_response["crypto_settings"]
+        assert "Frontend fetched and cached Fava crypto configuration." in caplog.text
 
-    @pytest.mark.tags("@config_dependent", "@frontend", "@api_driven")
-    @pytest.mark.parametrize("algo_name, mock_hash_result", [
-        ("SHA3-256", "hex_digest_sha3"),
-        ("SHA256", "hex_digest_sha256"),
+    @pytest.mark.config_dependent
+    @pytest.mark.frontend
+    @pytest.mark.api_driven
+    @pytest.mark.parametrize("algo_name, mock_hash_result_hex, js_lib_path_to_mock, expected_js_lib_call", [
+        ("SHA3-256", "hex_digest_sha3", JS_SHA3_256_PATH, True),
+        ("SHA256", "hex_digest_sha256", JS_SHA256_PATH, True),
     ])
-    def test_tc_agl_fcf_hash_001_calculate_configured_hash(self, mocker, algo_name, mock_hash_result):
-        """
-        TC_AGL_FCF_HASH_001: Verify CalculateConfiguredHash uses algorithm from API config.
-        Covers TDD Anchors: test_calculateConfiguredHash_uses_sha3_by_default_from_mock_api(),
-                           test_fe_calculate_hash_uses_algorithm_from_api_config_sha256()
-        """
-        # facade = FrontendCryptoFacade()
-        # mock_get_options = mocker.patch.object(facade, '_getFavaRuntimeCryptoOptions')
-        # mock_get_options.return_value = {"hashing": {"default_algorithm": algo_name}}
+    async def test_tc_agl_fcf_hash_001_calculate_configured_hash(self, mocker, algo_name, mock_hash_result_hex, js_lib_path_to_mock, expected_js_lib_call):
+        mock_get_options = mocker.patch.object(FrontendCryptoFacade, '_get_fava_runtime_crypto_options')
+        # Make it an async mock
+        async_mock_get_options = mocker.AsyncMock(return_value={"hashing": {"default_algorithm": algo_name}})
+        mock_get_options.side_effect = async_mock_get_options
         
-        # mock_internal_hash = mocker.patch.object(facade, '_internalCalculateHash')
-        # mock_internal_hash.return_value = b"hashed_bytes" # Assuming _internalCalculateHash returns bytes
+        mock_js_lib_hash = mocker.patch(f"{js_lib_path_to_mock}.hash")
+        mock_js_lib_hash.return_value = b"hashed_bytes_from_lib"
         
-        # mock_bytes_to_hex = mocker.patch("fava.frontend.crypto_facade.BYTES_TO_HEX_STRING") # Adjust path
-        # mock_bytes_to_hex.return_value = mock_hash_result
+        mock_bytes_to_hex = mocker.patch(f"{FRONTEND_UTILS_PATH}.bytes_to_hex_string", return_value=mock_hash_result_hex)
+        mock_utf8_encode = mocker.patch(f"{FRONTEND_UTILS_PATH}.utf8_encode", return_value=b"test_data_bytes")
 
-        # test_data = "test_data_string"
-        # result = facade.CalculateConfiguredHash(test_data)
+        test_data_str = "test_data_string"
+        result = await FrontendCryptoFacade.calculate_configured_hash(test_data_str)
 
-        # mock_get_options.assert_called_once()
-        # # facade._UTF8_ENCODE(test_data) would be called internally before _internalCalculateHash
-        # mock_internal_hash.assert_called_once_with(facade._UTF8_ENCODE(test_data), algo_name)
-        # mock_bytes_to_hex.assert_called_once_with(b"hashed_bytes")
-        # assert result == mock_hash_result
-        pytest.fail("Test not implemented")
+        async_mock_get_options.assert_called_once()
+        mock_utf8_encode.assert_called_once_with(test_data_str)
+        if expected_js_lib_call:
+            mock_js_lib_hash.assert_called_once_with(b"test_data_bytes")
+        mock_bytes_to_hex.assert_called_once_with(b"hashed_bytes_from_lib")
+        assert result == mock_hash_result_hex
 
-    @pytest.mark.tags("@error_handling", "@frontend", "@api_driven")
-    def test_tc_agl_fcf_hash_002_calculate_configured_hash_fallback(self, mocker):
-        """
-        TC_AGL_FCF_HASH_002: Verify CalculateConfiguredHash falls back to SHA3-256 on error.
-        Covers TDD Anchor: test_fe_calculate_hash_falls_back_to_sha3_256_if_api_config_algo_unavailable_logs_warning()
-        """
-        # facade = FrontendCryptoFacade()
-        # mock_get_options = mocker.patch.object(facade, '_getFavaRuntimeCryptoOptions')
-        # mock_get_options.return_value = {"hashing": {"default_algorithm": "FAILING_ALGO"}}
+    @pytest.mark.error_handling
+    @pytest.mark.frontend
+    @pytest.mark.api_driven
+    async def test_tc_agl_fcf_hash_002_calculate_configured_hash_fallback(self, mocker, caplog):
+        caplog.set_level(logging.WARNING)
+        mock_get_options = mocker.patch.object(FrontendCryptoFacade, '_get_fava_runtime_crypto_options')
+        async_mock_get_options = mocker.AsyncMock(return_value={"hashing": {"default_algorithm": "FAILING_ALGO"}})
+        mock_get_options.side_effect = async_mock_get_options
 
-        # mock_internal_hash = mocker.patch.object(facade, '_internalCalculateHash')
-        # mock_bytes_to_hex = mocker.patch("fava.frontend.crypto_facade.BYTES_TO_HEX_STRING")
-        # expected_fallback_digest = "fallback_sha3_digest"
+        mock_js_sha256_hash = mocker.patch(f"{JS_SHA256_PATH}.hash") # Will be used by _internal_calculate_hash
+        mock_js_sha3_256_hash = mocker.patch(f"{JS_SHA3_256_PATH}.hash")
 
-        # def internal_hash_side_effect(data_bytes, algo):
-        #     if algo == "FAILING_ALGO":
-        #         raise Exception("Mocked hash failure")
-        #     elif algo == "SHA3-256":
-        #         return b"fallback_hashed_bytes"
-        #     pytest.fail(f"Unexpected algo in fallback: {algo}")
+        mock_bytes_to_hex = mocker.patch(f"{FRONTEND_UTILS_PATH}.bytes_to_hex_string")
+        mock_utf8_encode = mocker.patch(f"{FRONTEND_UTILS_PATH}.utf8_encode", return_value=b"test_data_bytes")
         
-        # mock_internal_hash.side_effect = internal_hash_side_effect
-        # mock_bytes_to_hex.return_value = expected_fallback_digest # Assume it's called for SHA3-256 result
+        expected_fallback_digest_hex = "fallback_sha3_digest_hex"
 
-        # test_data = "test_data_string"
-        # result = facade.CalculateConfiguredHash(test_data)
+        def internal_hash_side_effect(data_bytes, algo):
+            if algo == "FAILING_ALGO":
+                raise AlgorithmUnavailableError("Mocked: FAILING_ALGO unavailable")
+            elif algo == "SHA3-256":
+                return b"fallback_hashed_bytes"
+            pytest.fail(f"Unexpected algo in _internal_calculate_hash mock: {algo}")
+        
+        mocker.patch.object(FrontendCryptoFacade, '_internal_calculate_hash', side_effect=internal_hash_side_effect)
+        mock_bytes_to_hex.return_value = expected_fallback_digest_hex # For the fallback SHA3-256 result
 
-        # assert mock_internal_hash.call_count == 2
-        # mock_internal_hash.assert_any_call(facade._UTF8_ENCODE(test_data), "FAILING_ALGO")
-        # mock_internal_hash.assert_any_call(facade._UTF8_ENCODE(test_data), "SHA3-256")
-        # mock_bytes_to_hex.assert_called_once_with(b"fallback_hashed_bytes")
-        # assert result == expected_fallback_digest
-        # Check for logs: "CalculateConfiguredHash failed... Attempting fallback." and "Used fallback SHA3-256..."
-        pytest.fail("Test not implemented")
+        test_data_str = "test_data_string"
+        result = await FrontendCryptoFacade.calculate_configured_hash(test_data_str)
 
-    @pytest.mark.tags("@config_dependent", "@frontend", "@api_driven", "@security_sensitive")
-    def test_tc_agl_fcf_wasm_001_verify_wasm_signature_enabled(self, mocker):
-        """
-        TC_AGL_FCF_WASM_001: Verify VerifyWasmSignatureWithConfig uses Dilithium3 from API config when enabled.
-        Covers TDD Anchors: test_verifyWasmSignatureWithConfig_uses_dilithium3_from_mock_api(),
-                           test_fe_verify_wasm_sig_calls_internal_verify_with_params_from_api_config()
-        """
-        # facade = FrontendCryptoFacade()
-        # mock_get_options = mocker.patch.object(facade, '_getFavaRuntimeCryptoOptions')
-        # mock_get_options.return_value = {
-        #     "wasm_integrity": {
-        #         "verification_enabled": True,
-        #         "public_key_dilithium3_base64": "MOCK_DIL_PK_B64",
-        #         "signature_algorithm": "Dilithium3"
-        #     }
-        # }
-        # mock_internal_verify = mocker.patch.object(facade, '_internalVerifySignature')
-        # mock_internal_verify.return_value = True
+        assert FrontendCryptoFacade._internal_calculate_hash.call_count == 2
+        FrontendCryptoFacade._internal_calculate_hash.assert_any_call(b"test_data_bytes", "FAILING_ALGO")
+        FrontendCryptoFacade._internal_calculate_hash.assert_any_call(b"test_data_bytes", "SHA3-256")
+        
+        mock_bytes_to_hex.assert_called_once_with(b"fallback_hashed_bytes")
+        assert result == expected_fallback_digest_hex
+        assert "CalculateConfiguredHash failed with primary algorithm" in caplog.text
+        assert "Used fallback SHA3-256 for hashing." in caplog.text
 
-        # wasm_module_buffer = b"wasm_bytes"
-        # signature_buffer = b"sig_bytes"
-        # result = facade.VerifyWasmSignatureWithConfig(wasm_module_buffer, signature_buffer)
 
-        # mock_get_options.assert_called_once()
-        # mock_internal_verify.assert_called_once_with(
-        #     wasm_module_buffer, signature_buffer, "MOCK_DIL_PK_B64", "Dilithium3"
-        # )
-        # assert result is True
-        pytest.fail("Test not implemented")
+    @pytest.mark.config_dependent
+    @pytest.mark.frontend
+    @pytest.mark.api_driven
+    @pytest.mark.security_sensitive
+    async def test_tc_agl_fcf_wasm_001_verify_wasm_signature_enabled(self, mocker):
+        mock_get_options = mocker.patch.object(FrontendCryptoFacade, '_get_fava_runtime_crypto_options')
+        async_mock_get_options = mocker.AsyncMock(return_value={
+            "wasm_integrity": {
+                "verification_enabled": True,
+                "public_key_dilithium3_base64": "MOCK_DIL_PK_B64_STRING",
+                "signature_algorithm": "Dilithium3"
+            }
+        })
+        mock_get_options.side_effect = async_mock_get_options
+        
+        mock_internal_verify = mocker.patch.object(FrontendCryptoFacade, '_internal_verify_signature', return_value=True)
+        mock_b64_decode = mocker.patch(f"{FRONTEND_UTILS_PATH}.base64_decode", return_value=b"decoded_pk_bytes")
 
-    @pytest.mark.tags("@config_dependent", "@frontend", "@api_driven")
-    def test_tc_agl_fcf_wasm_002_verify_wasm_signature_disabled(self, mocker):
-        """
-        TC_AGL_FCF_WASM_002: Verify VerifyWasmSignatureWithConfig returns true if verification disabled.
-        Covers TDD Anchor: test_fe_verify_wasm_sig_returns_true_if_verification_disabled_in_api_config()
-        """
-        # facade = FrontendCryptoFacade()
-        # mock_get_options = mocker.patch.object(facade, '_getFavaRuntimeCryptoOptions')
-        # mock_get_options.return_value = {
-        #     "wasm_integrity": {"verification_enabled": False}
-        # }
-        # mock_internal_verify = mocker.patch.object(facade, '_internalVerifySignature')
+        wasm_module_buffer = b"wasm_bytes_content"
+        signature_buffer = b"sig_bytes_content"
+        result = await FrontendCryptoFacade.verify_wasm_signature_with_config(wasm_module_buffer, signature_buffer)
 
-        # result = facade.VerifyWasmSignatureWithConfig(b"wasm", b"sig")
+        async_mock_get_options.assert_called_once()
+        mock_internal_verify.assert_called_once_with(
+            wasm_module_buffer, signature_buffer, "MOCK_DIL_PK_B64_STRING", "Dilithium3"
+        )
+        assert result is True
 
-        # mock_get_options.assert_called_once()
-        # mock_internal_verify.assert_not_called()
-        # assert result is True
-        # Check for log "WASM signature verification is disabled..."
-        pytest.fail("Test not implemented")
+    @pytest.mark.config_dependent
+    @pytest.mark.frontend
+    @pytest.mark.api_driven
+    async def test_tc_agl_fcf_wasm_002_verify_wasm_signature_disabled(self, mocker, caplog):
+        caplog.set_level(logging.INFO)
+        mock_get_options = mocker.patch.object(FrontendCryptoFacade, '_get_fava_runtime_crypto_options')
+        async_mock_get_options = mocker.AsyncMock(return_value= {"wasm_integrity": {"verification_enabled": False}} )
+        mock_get_options.side_effect = async_mock_get_options
+        
+        mock_internal_verify = mocker.spy(FrontendCryptoFacade, '_internal_verify_signature')
+
+        result = await FrontendCryptoFacade.verify_wasm_signature_with_config(b"wasm", b"sig")
+
+        async_mock_get_options.assert_called_once()
+        mock_internal_verify.assert_not_called()
+        assert result is True
+        assert "WASM signature verification is disabled in configuration." in caplog.text
