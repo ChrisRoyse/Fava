@@ -15,6 +15,11 @@ from __future__ import annotations
 import logging
 import mimetypes
 from datetime import date
+
+from fava.pqc.proxy_awareness import get_pqc_status_from_config
+from fava.pqc.proxy_awareness import determine_effective_pqc_status
+from fava.pqc.configuration_validator import validate_pqc_tls_embedded_server_options
+from fava.pqc.configuration_validator import detect_available_python_pqc_kems
 from datetime import datetime
 from datetime import timezone
 from functools import lru_cache
@@ -277,6 +282,21 @@ def _setup_filters(
 
             ledger.extensions.before_request()
 
+            # PQC Data in Transit: Log effective PQC status for request
+            if g.ledger: # Ensure ledger context is available
+                pqc_fava_config = current_app.config
+                # verbose_logging might be a general Fava setting or a new PQC-specific one.
+                # Using a new config key for clarity here.
+                if pqc_fava_config.get("VERBOSE_LOGGING", False):
+                    effective_status = determine_effective_pqc_status(
+                        request.headers, pqc_fava_config
+                    )
+                    log.debug(
+                        "Effective PQC status for request to %s: %s",
+                        request.path,
+                        effective_status,
+                    )
+
     if read_only:
         # Prevent any request that isn't a GET if read-only mode is active
         @fava_app.before_request
@@ -482,6 +502,9 @@ def create_app(
     incognito: bool = False,
     read_only: bool = False,
     poll_watcher: bool = False,
+    assume_pqc_tls_proxy_enabled: bool = False,
+    pqc_tls_embedded_server_kems: list[str] | None = None,
+    verbose_logging: bool = False, # Add for PQC verbose logging
 ) -> Flask:
     """Create a Fava Flask application.
 
@@ -507,6 +530,37 @@ def create_app(
     fava_app.config["LEDGERS"] = _LedgerSlugLoader(
         fava_app, load=load, poll_watcher=poll_watcher
     )
+    fava_app.config["ASSUME_PQC_TLS_PROXY_ENABLED"] = assume_pqc_tls_proxy_enabled
+    fava_app.config["PQC_TLS_EMBEDDED_SERVER_KEMS"] = pqc_tls_embedded_server_kems or []
+    fava_app.config["VERBOSE_LOGGING"] = verbose_logging
+
+
+    # PQC Data in Transit: Initialization logging and validation
+    # Use fava_app.config as the 'fava_config' for PQC functions
+    pqc_fava_config = fava_app.config
+
+    # Log assumed PQC status from config
+    # The get_pqc_status_from_config expects 'assume_pqc_tls_proxy_enabled' key
+    # which we've added to pqc_fava_config (fava_app.config)
+    initial_pqc_config_status = get_pqc_status_from_config(pqc_fava_config)
+    log.info(
+        "Initial PQC assumption based on Fava app config: %s",
+        initial_pqc_config_status,
+    )
+
+    # Validate PQC TLS embedded server options
+    # detect_available_python_pqc_kems is hypothetical and returns [] for now
+    known_env_kems = detect_available_python_pqc_kems()
+    # validate_pqc_tls_embedded_server_options expects 'pqc_tls_embedded_server_kems'
+    validation_errors = validate_pqc_tls_embedded_server_options(
+        pqc_fava_config, known_env_kems
+    )
+    if validation_errors:
+        for error_msg in validation_errors:
+            log.error("PQC TLS Embedded Server Config Error: %s", error_msg)
+        # Depending on severity, one might choose to raise an error or prevent startup
+        # if embedded HTTPS with PQC is critical and misconfigured.
+        # For now, just logging errors.
 
     return fava_app
 
