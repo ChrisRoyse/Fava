@@ -1,37 +1,25 @@
-"""
-Cryptographic exceptions for the Fava PQC module.
-"""
+"""Custom exceptions for PQC-related cryptographic operations in Fava."""
 
-
-class CryptoError(Exception):
-    """Base exception for cryptographic operations."""
+class HashingAlgorithmUnavailableError(Exception):
+    """Raised when a configured hashing algorithm is not available."""
     pass
 
+class InternalHashingError(Exception):
+    """Raised for unexpected internal errors during hashing operations."""
+    pass
+
+class CryptoError(Exception):
+    """Base class for general PQC crypto errors."""
+    pass
 
 class KeyGenerationError(CryptoError):
     """Raised when key generation fails."""
     pass
 
-
-class EncryptionError(CryptoError):
-    """Raised when encryption operations fail."""
-    pass
-
-
-class DecryptionError(CryptoError):
-    """Raised when decryption operations fail."""
-    pass
-
-
 class InvalidKeyError(CryptoError):
-    """Raised when a key is invalid or corrupted."""
+    """Raised when an invalid key is encountered."""
     pass
-
 
 class UnsupportedAlgorithmError(CryptoError):
-    """Raised when an unsupported algorithm is requested."""
-    pass
-
-class KeyManagementError(CryptoError):
-    """Raised for errors during key management operations (loading, storing, deriving from non-passphrase sources)."""
+    """Raised when an unsupported cryptographic algorithm is requested."""
     pass
