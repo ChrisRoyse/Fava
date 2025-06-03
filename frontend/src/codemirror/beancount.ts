@@ -1,4 +1,4 @@
-didimport {
+import {
   defineLanguageFacet,
   Language,
   languageDataProp,

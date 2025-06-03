@@ -1,6 +1,6 @@
 --- Starting npm install in frontend --- 
 
-added 66 packages, and audited 484 packages in 1s
+up to date, audited 484 packages in 963ms
 
 114 packages are looking for funding
   run `npm fund` for details
@@ -33,3 +33,40 @@ src/codemirror/beancount.ts:1:10: ERROR: Expected ";" but found "{"
   errors: [Getter/Setter],
   warnings: [Getter/Setter]
 }
+Terminate batch job (Y/N)? 
+^C
+--- Starting npm install in frontend (Individual Execution) ---
+up to date, audited 484 packages in 1s
+
+114 packages are looking for funding
+  run `npm fund` for details
+
+4 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+--- Finished npm install in frontend (Individual Execution) ---
+--- Starting npm run build in frontend (Individual Execution) ---
+> fava@1.0.0 build
+> node -r esbuild-register build.ts
+
+starting build
+X [ERROR] Expected ";" but found "{"
+
+    src/codemirror/beancount.ts:1:10:
+      1 │ didimport {
+        │^
+        ╵;
+
+Error: Build failed with 1 error:
+src/codemirror/beancount.ts:1:10: ERROR: Expected ";" but found "{"
+    at failureErrorWithLog (C:\code\ChrisFava\frontend\node_modules\esbuild\lib\main.js:1463:15)
+    at C:\code\ChrisFava\frontend\node_modules\esbuild\lib\main.js:924:25
+    at C:\code\ChrisFava\frontend\node_modules\esbuild\lib\main.js:1341:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+--- Finished npm run build in frontend (Individual Execution) - FAILED ---
