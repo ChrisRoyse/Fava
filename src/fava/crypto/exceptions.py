@@ -31,3 +31,7 @@ class InvalidKeyError(CryptoError):
 class UnsupportedAlgorithmError(CryptoError):
     """Raised when an unsupported algorithm is requested."""
     pass
+
+class KeyManagementError(CryptoError):
+    """Raised for errors during key management operations (loading, storing, deriving from non-passphrase sources)."""
+    pass
