@@ -65,28 +65,36 @@ MODULE BackendCryptoService
 
     PRIVATE _HANDLER_REGISTRY = NEW Map() // Maps suite_id (String) to CryptoHandlerFactory or CryptoHandlerInstance
 
-    // As per spec 10.1
+    // As per spec 10.1, updated to reflect detailed bundle from Data@Rest
     INTERFACE CryptoHandler 
         FUNCTION get_suite_id() -> String
             // TEST: test_crypto_handler_get_suite_id_returns_correct_unique_id() for each concrete handler.
 
-        // key_material: Could be passphrase, raw key bytes, or a structured object.
+        // key_material: Structure containing necessary keys (public for encrypt, private for decrypt).
+        //               Specific structure depends on the handler and key management mode.
         // suite_specific_config: Dictionary for this suite from FAVA_CRYPTO_SETTINGS.data_at_rest.suites[suite_id].
-        FUNCTION encrypt(plaintext: Bytes, key_material: Any, suite_specific_config: Dictionary) -> EncryptedBundle
+        FUNCTION encrypt(plaintext: Bytes, key_material: Any, suite_specific_config: Dictionary) -> HybridEncryptedBundle
             // TEST: test_crypto_handler_encrypt_output_not_equal_to_plaintext()
-            // TEST: test_crypto_handler_encrypt_throws_error_for_invalid_key_material_type()
+            // TEST: test_crypto_handler_encrypt_throws_error_for_invalid_key_material_type_or_content()
             // TEST: test_crypto_handler_encrypt_throws_error_for_missing_required_suite_config()
 
-        FUNCTION decrypt(bundle: EncryptedBundle, key_material: Any, suite_specific_config: Dictionary) -> Bytes
+        FUNCTION decrypt(bundle: HybridEncryptedBundle, key_material: Any, suite_specific_config: Dictionary) -> Bytes
             // TEST: test_crypto_handler_decrypt_reverses_encrypt_operation_successfully()
             // TEST: test_crypto_handler_decrypt_throws_error_for_incorrect_key_material()
             // TEST: test_crypto_handler_decrypt_throws_error_for_tampered_or_malformed_bundle()
     END INTERFACE
 
-    STRUCTURE EncryptedBundle // As per spec, needs to carry enough info for decryption
-        suite_id_used: String   // Identifier of the suite used for this encryption (e.g., "HYBRID_X25519_MLKEM768_AES256GCM")
-        ciphertext: Bytes
-        metadata: Dictionary    // e.g., { iv: Bytes, salt: Bytes (if KDF salt is per-encryption), kem_outputs: Bytes }
+    // Updated to align with PQC_Data_At_Rest_Pseudo.md EncryptedFileBundle
+    STRUCTURE HybridEncryptedBundle 
+        format_identifier: STRING       // e.g., "FAVA_PQC_HYBRID_V1"
+        suite_id_used: String           // Identifier of the suite used (e.g., "HYBRID_X25519_MLKEM768_AES256GCM")
+        classical_kem_ephemeral_public_key: BYTES // (e.g., for X25519 sender's ephemeral PK)
+        pqc_kem_encapsulated_key: BYTES // Ciphertext from PQC KEM operation (e.g., ML-KEM's ct)
+        symmetric_cipher_iv_or_nonce: BYTES
+        encrypted_data_ciphertext: BYTES
+        authentication_tag: BYTES       // e.g., from AES-GCM
+        kdf_salt_for_passphrase_derived_keys: BYTES (OPTIONAL) // Salt used if KEM keys were derived from passphrase
+        kdf_salt_for_hybrid_sk_derivation: BYTES (OPTIONAL) // Salt used if KDF for symmetric key from KEM outputs uses a salt
     END STRUCTURE
 
     // As per spec 10.1
@@ -177,119 +185,218 @@ MODULE BackendCryptoService
             RETURN HandlersList
         END FUNCTION
 
-    // --- Example HybridPqcCryptoHandler (Illustrative for FR2.6) ---
+    // --- Example HybridPqcCryptoHandler (Illustrative for FR2.6, Aligned with Data@Rest Hybrid KEM) ---
+    // This handler demonstrates a hybrid KEM approach (Classical KEM + PQC KEM -> KDF -> Symmetric Cipher).
+    // It expects KEM public keys for encryption and KEM private keys for decryption.
+    // Derivation of these KEM keys (e.g., from passphrase or external file) is handled by a
+    // higher-level key management component before calling this handler.
+
+    STRUCTURE KeyMaterialForEncryption
+        classical_recipient_pk: Bytes // Recipient's classical KEM public key (e.g., X25519 PK)
+        pqc_recipient_pk: Bytes       // Recipient's PQC KEM public key (e.g., ML-KEM PK)
+        // Optional salt if the KEM keys themselves were derived from a passphrase and this salt needs to be stored in the bundle
+        kdf_salt_for_passphrase_derived_keys: Bytes (OPTIONAL)
+    END STRUCTURE
+
+    STRUCTURE KeyMaterialForDecryption
+        classical_recipient_sk: Bytes // Recipient's classical KEM private key (e.g., X25519 SK)
+        pqc_recipient_sk: Bytes       // Recipient's PQC KEM private key (e.g., ML-KEM SK)
+    END STRUCTURE
+
     CLASS HybridPqcCryptoHandler IMPLEMENTS CryptoHandler
         PRIVATE my_suite_id: String
         PRIVATE my_suite_config: Dictionary // From FAVA_CRYPTO_SETTINGS.data_at_rest.suites[my_suite_id]
 
         CONSTRUCTOR(suite_id_param: String, full_suite_config: Dictionary)
-            // TEST: test_hybrid_handler_constructor_sets_id_and_config_validates_essential_params()
-            // TEST: test_hybrid_handler_constructor_throws_if_req_params_like_kem_symm_kdf_missing_in_config()
+            // TEST: test_hybrid_handler_constructor_sets_id_and_config()
+            // TEST: test_hybrid_handler_constructor_throws_if_essential_algos_missing_in_config(classical_kem_algorithm, pqc_kem_algorithm, symmetric_algorithm, kdf_algorithm_for_hybrid_sk)
             this.my_suite_id = suite_id_param
             this.my_suite_config = full_suite_config
-            // VALIDATE this.my_suite_config for required fields like classical_kem_algorithm, pqc_kem_algorithm, symmetric_algorithm, kdf_algorithm
+            
+            IF full_suite_config IS NULL OR
+               full_suite_config.classical_kem_algorithm IS NULL OR
+               full_suite_config.pqc_kem_algorithm IS NULL OR
+               full_suite_config.symmetric_algorithm IS NULL OR
+               full_suite_config.kdf_algorithm_for_hybrid_sk IS NULL THEN // Field name from Data@Rest spec
+                THROW ConfigurationError("HybridPqcCryptoHandler requires classical_kem_algorithm, pqc_kem_algorithm, symmetric_algorithm, and kdf_algorithm_for_hybrid_sk in suite configuration.")
+            END IF
         END CONSTRUCTOR
 
         FUNCTION get_suite_id() -> String
             RETURN this.my_suite_id
         END FUNCTION
 
-        FUNCTION _derive_symmetric_key_from_passphrase(passphrase: String, salt: Bytes) -> SymmetricKeyBytes
-            // TEST: test_hybrid_derive_keys_uses_kdf_from_suite_config_hkdf_sha3_512()
-            // TEST: test_hybrid_derive_keys_produces_deterministic_key_for_same_passphrase_salt()
-            KdfAlgorithm = this.my_suite_config.kdf_algorithm // e.g., "HKDF-SHA3-512"
-            // Actual KDF logic using KdfAlgorithm, passphrase, salt, and context info (e.g., "FavaDataAtRest")
-            // to derive a symmetric key of appropriate length for this.my_suite_config.symmetric_algorithm.
-            RETURN KDF_LIBRARY.derive(passphrase, salt, KdfAlgorithm, GET_SYMMETRIC_KEY_LENGTH(this.my_suite_config.symmetric_algorithm), "FavaSymmetricKey")
-        END FUNCTION
+        FUNCTION encrypt(plaintext: Bytes, key_material: KeyMaterialForEncryption, suite_config_override: Dictionary OPTIONAL) -> HybridEncryptedBundle
+            // TEST: test_hybrid_encrypt_generates_valid_bundle_with_all_fields()
+            // TEST: test_hybrid_encrypt_classical_kem_interface_returns_secret_and_ephemeral_pk()
+            // TEST: test_hybrid_encrypt_pqc_kem_interface_returns_secret_and_encapsulated_key()
+            // TEST: test_hybrid_encrypt_kdf_combines_secrets_correctly_into_symmetric_key()
+            // TEST: test_hybrid_encrypt_kdf_produces_correct_length_key_for_symmetric_alg()
+            // TEST: test_hybrid_encrypt_aead_produces_distinct_ciphertext_and_tag()
+            // TEST: test_hybrid_encrypt_throws_for_missing_recipient_keys_in_key_material()
+            // TEST: test_hybrid_encrypt_throws_for_incompatible_algorithms_or_keys() (EC6.3)
 
-        FUNCTION encrypt(plaintext: Bytes, key_material: Any, suite_config_override: Dictionary OPTIONAL) -> EncryptedBundle
-            // TDD Anchor: test_hybrid_pqc_handler_encrypt_decrypt_with_passphrase_derived_key() (encrypt part)
-            // FR2.6: Support for Hybrid Modes. This simplified version focuses on passphrase-derived symmetric key.
-            // A full hybrid KEM exchange is more complex and typically for key agreement, not direct data-at-rest from passphrase.
-            // The suite KEMs (classical_kem_algorithm, pqc_kem_algorithm) might be used if key_material was a public key set.
-            // For PASSPHRASE_DERIVED, the KDF is central.
-            // TEST: test_hybrid_encrypt_uses_symmetric_algo_from_suite_config_aes256gcm()
-            // TEST: test_hybrid_encrypt_generates_unique_iv_per_encryption()
-            // TEST: test_hybrid_encrypt_includes_suite_id_iv_salt_in_bundle_metadata()
             CurrentConfig = suite_config_override IF PROVIDED ELSE this.my_suite_config
-            SymmetricKey: Bytes
-            SaltToStore: Bytes = NULL
+            LOG_INFO("Encrypting with Hybrid PQC suite: " + this.my_suite_id)
 
-            IF CurrentConfig.key_management_mode == "PASSPHRASE_DERIVED" THEN
-                // Assume key_material is the passphrase string
-                Passphrase = CAST_TO_STRING(key_material)
-                // Salt can be global (less ideal for passphrases) or generated per encryption.
-                // Using per-encryption salt stored in bundle is better.
-                GeneratedSalt = GENERATE_RANDOM_BYTES(16) // Example salt size
-                SaltToStore = GeneratedSalt
-                SymmetricKey = _derive_symmetric_key_from_passphrase(Passphrase, GeneratedSalt)
-            // ELIF CurrentConfig.key_management_mode == "EXTERNAL_KEY_FILE" THEN
-                // Logic to load/use externally managed key based on key_material
-                // SymmetricKey = ...
-            ELSE
-                THROW ConfigurationError("Unsupported key_management_mode: " + CurrentConfig.key_management_mode)
+            IF key_material IS NULL OR key_material.classical_recipient_pk IS NULL OR key_material.pqc_recipient_pk IS NULL THEN
+                THROW InvalidArgumentError("Missing recipient public keys in key_material for encryption.")
+            END IF
+            ClassicalRecipientPK = key_material.classical_recipient_pk
+            PqcRecipientPK = key_material.pqc_recipient_pk
+
+            ClassicalKEMAlg = CurrentConfig.classical_kem_algorithm
+            PqcKEMAlg = CurrentConfig.pqc_kem_algorithm
+            SymmetricAlg = CurrentConfig.symmetric_algorithm
+            KdfForHybridSKAlg = CurrentConfig.kdf_algorithm_for_hybrid_sk 
+
+            IF ClassicalKEMAlg IS NULL OR PqcKEMAlg IS NULL OR SymmetricAlg IS NULL OR KdfForHybridSKAlg IS NULL THEN
+                THROW ConfigurationError("Missing algorithm specifications in suite config: " + this.my_suite_id)
             END IF
 
-            IV = GENERATE_RANDOM_BYTES(GET_IV_LENGTH(CurrentConfig.symmetric_algorithm)) // e.g., 12 bytes for AES-GCM
-            SymmetricCipher = GET_SYMMETRIC_CIPHER_INSTANCE(CurrentConfig.symmetric_algorithm) // e.g., AES-256-GCM
-            
             TRY
-                CiphertextWithAuthTag = SymmetricCipher.encrypt(plaintext, SymmetricKey, IV) // AEAD ciphers produce this
-            CATCH CryptoError AS e // From underlying crypto library
-                LOG_ERROR("Symmetric encryption failed for suite " + this.my_suite_id + ": " + e.message)
-                THROW EncryptionFailedError("Underlying symmetric encryption failed.") // EC6.3 if params incompatible
-            END TRY
+                // 1. Classical KEM operation
+                ClassicalEncapsulationResult = KEM_LIBRARY.hybrid_kem_classical_encapsulate(ClassicalKEMAlg, ClassicalRecipientPK)
+                // Expected ClassicalEncapsulationResult = { shared_secret: Bytes, ephemeral_public_key: Bytes }
+                ClassicalSharedSecretPart = ClassicalEncapsulationResult.shared_secret
+                ClassicalEphemeralPKtoStore = ClassicalEncapsulationResult.ephemeral_public_key
+                
+                // 2. PQC KEM operation
+                PqcEncapsulationResult = KEM_LIBRARY.pqc_kem_encapsulate(PqcKEMAlg, PqcRecipientPK)
+                // Expected PqcEncapsulationResult = { shared_secret: Bytes, encapsulated_key: Bytes }
+                PqcSharedSecretPart = PqcEncapsulationResult.shared_secret
+                PqcEncapsulatedKeyToStore = PqcEncapsulationResult.encapsulated_key
 
-            RETURN NEW EncryptedBundle(
-                suite_id_used: this.my_suite_id,
-                ciphertext: CiphertextWithAuthTag,
-                metadata: { "iv": IV, "salt": SaltToStore } // SaltToStore might be null if not used
-            )
-        END FUNCTION
-
-        FUNCTION decrypt(bundle: EncryptedBundle, key_material: Any, suite_config_override: Dictionary OPTIONAL) -> Bytes
-            // TDD Anchor: test_hybrid_pqc_handler_encrypt_decrypt_with_passphrase_derived_key() (decrypt part)
-            // TEST: test_hybrid_decrypt_uses_symmetric_algo_from_suite_config_aes256gcm()
-            // TEST: test_hybrid_decrypt_extracts_iv_salt_from_bundle_metadata_correctly()
-            // TEST: test_hybrid_decrypt_throws_decryption_error_on_auth_failure_for_aead()
-            CurrentConfig = suite_config_override IF PROVIDED ELSE this.my_suite_config
-            SymmetricKey: Bytes
-
-            IF bundle.suite_id_used != this.my_suite_id AND suite_config_override IS NULL THEN
-                 // This check is more for the orchestrating DecryptDataAtRest function.
-                 // A handler should assume it's called appropriately for its suite.
-            END IF
-
-            IF bundle.metadata IS NULL OR bundle.metadata.iv IS NULL THEN
-                THROW DecryptionError("Missing IV in encrypted bundle metadata for suite " + this.my_suite_id)
-            END IF
-            IV = bundle.metadata.iv
-            SaltFromBundle = bundle.metadata.salt // May be null if global salt was used or not applicable
-
-            IF CurrentConfig.key_management_mode == "PASSPHRASE_DERIVED" THEN
-                Passphrase = CAST_TO_STRING(key_material)
-                IF SaltFromBundle IS NULL THEN // This case implies a fixed/global salt was used during encryption.
-                    // This is less secure and makes assumptions. Prefer salt in bundle.
-                    // GlobalSalt = GlobalConfig.GetCryptoSettings().data_at_rest.passphrase_kdf_salt_global
-                    // SymmetricKey = _derive_symmetric_key_from_passphrase(Passphrase, GlobalSalt)
-                    THROW DecryptionError("Missing salt in bundle metadata for passphrase-derived key, and global salt use is ambiguous/discouraged here.")
-                ELSE
-                    SymmetricKey = _derive_symmetric_key_from_passphrase(Passphrase, SaltFromBundle)
+                // 3. Combine shared secrets and derive symmetric key using KDF
+                CombinedKEMSecrets = CONCATENATE(ClassicalSharedSecretPart, PqcSharedSecretPart)
+                // Salt for KDF for hybrid SK derivation is optional and comes from bundle if used. Here, generate if suite needs it.
+                // For simplicity, assume if CurrentConfig.kdf_salt_length_for_hybrid_sk is defined, we generate and store it.
+                KdfSaltForHybridSK = NULL
+                IF CurrentConfig.kdf_salt_length_for_hybrid_sk IS NOT NULL AND CurrentConfig.kdf_salt_length_for_hybrid_sk > 0 THEN
+                    KdfSaltForHybridSK = GENERATE_RANDOM_BYTES(CurrentConfig.kdf_salt_length_for_hybrid_sk)
                 END IF
-            // ELIF ...
-            ELSE
-                THROW ConfigurationError("Unsupported key_management_mode for decryption: " + CurrentConfig.key_management_mode)
+
+                DerivedSymmetricKey = KDF_LIBRARY.derive(
+                    CombinedKEMSecrets,
+                    KdfSaltForHybridSK, // May be NULL if KDF doesn't use it or it's fixed
+                    KdfForHybridSKAlg,
+                    GET_SYMMETRIC_KEY_LENGTH(SymmetricAlg),
+                    "FavaHybridSymmetricKeyDerivationContext" 
+                )
+
+                // 4. Symmetric encryption
+                IV_or_Nonce = GENERATE_RANDOM_BYTES(GET_IV_LENGTH(SymmetricAlg))
+                SymmetricCipherResult = SYMMETRIC_CIPHER_LIBRARY.encrypt_aead(
+                    SymmetricAlg,
+                    DerivedSymmetricKey,
+                    IV_or_Nonce,
+                    plaintext,
+                    NULL // Associated Data (AAD)
+                )
+                // Expected SymmetricCipherResult = { ciphertext: Bytes, authentication_tag: Bytes }
+                EncryptedDataCiphertext = SymmetricCipherResult.ciphertext
+                AuthenticationTag = SymmetricCipherResult.authentication_tag
+
+                // 5. Construct HybridEncryptedBundle
+                Bundle = NEW HybridEncryptedBundle(
+                    format_identifier: CurrentConfig.format_identifier IF CurrentConfig.format_identifier ELSE "FAVA_PQC_HYBRID_V1",
+                    suite_id_used: this.my_suite_id,
+                    classical_kem_ephemeral_public_key: ClassicalEphemeralPKtoStore,
+                    pqc_kem_encapsulated_key: PqcEncapsulatedKeyToStore,
+                    symmetric_cipher_iv_or_nonce: IV_or_Nonce,
+                    encrypted_data_ciphertext: EncryptedDataCiphertext,
+                    authentication_tag: AuthenticationTag,
+                    kdf_salt_for_passphrase_derived_keys: key_material.kdf_salt_for_passphrase_derived_keys IF key_material.kdf_salt_for_passphrase_derived_keys IS PROVIDED ELSE NULL,
+                    kdf_salt_for_hybrid_sk_derivation: KdfSaltForHybridSK
+                )
+                RETURN Bundle
+            CATCH CryptoError AS e
+                LOG_ERROR("Hybrid encryption failed for suite " + this.my_suite_id + ": " + e.message)
+                THROW EncryptionFailedError("Underlying cryptographic operation failed during hybrid encryption: " + e.message)
+            END TRY
+        END FUNCTION
+
+        FUNCTION decrypt(bundle: HybridEncryptedBundle, key_material: KeyMaterialForDecryption, suite_config_override: Dictionary OPTIONAL) -> Bytes
+            // TEST: test_hybrid_decrypt_reverses_encrypt_successfully_with_valid_keys_and_bundle()
+            // TEST: test_hybrid_decrypt_classical_kem_decapsulation_yields_correct_secret()
+            // TEST: test_hybrid_decrypt_pqc_kem_decapsulation_yields_correct_secret()
+            // TEST: test_hybrid_decrypt_kdf_reconstructs_same_symmetric_key_as_encryption()
+            // TEST: test_hybrid_decrypt_aead_verifies_tag_and_returns_original_plaintext()
+            // TEST: test_hybrid_decrypt_fails_with_wrong_classical_kem_private_key()
+            // TEST: test_hybrid_decrypt_fails_with_wrong_pqc_kem_private_key()
+            // TEST: test_hybrid_decrypt_fails_on_tampered_ciphertext_auth_tag_mismatch() (EC6.4)
+            // TEST: test_hybrid_decrypt_fails_on_tampered_pqc_encapsulated_key()
+            // TEST: test_hybrid_decrypt_fails_if_bundle_suite_id_mismatches_handler_suite_id_and_no_override()
+            // TEST: test_hybrid_decrypt_throws_for_missing_private_keys_in_key_material()
+
+            CurrentConfig = suite_config_override IF PROVIDED ELSE this.my_suite_config
+            LOG_INFO("Decrypting with Hybrid PQC suite: " + this.my_suite_id)
+
+            IF bundle IS NULL THEN THROW InvalidArgumentError("Encrypted bundle cannot be null.")
+            IF bundle.suite_id_used != this.my_suite_id AND suite_config_override IS NULL THEN
+                LOG_WARNING("Bundle suite_id '" + bundle.suite_id_used + "' does not match handler's active suite '" + this.my_suite_id + "'. Decryption might fail if config mismatch.")
+            END IF
+            IF key_material IS NULL OR key_material.classical_recipient_sk IS NULL OR key_material.pqc_recipient_sk IS NULL THEN
+                THROW InvalidArgumentError("Missing recipient private keys in key_material for decryption.")
+            END IF
+            ClassicalRecipientSK = key_material.classical_recipient_sk
+            PqcRecipientSK = key_material.pqc_recipient_sk
+
+            ClassicalKEMAlg = CurrentConfig.classical_kem_algorithm
+            PqcKEMAlg = CurrentConfig.pqc_kem_algorithm
+            SymmetricAlg = CurrentConfig.symmetric_algorithm
+            KdfForHybridSKAlg = CurrentConfig.kdf_algorithm_for_hybrid_sk
+
+            IF ClassicalKEMAlg IS NULL OR PqcKEMAlg IS NULL OR SymmetricAlg IS NULL OR KdfForHybridSKAlg IS NULL THEN
+                THROW ConfigurationError("Missing algorithm specifications in suite config: " + this.my_suite_id)
             END IF
 
-            SymmetricCipher = GET_SYMMETRIC_CIPHER_INSTANCE(CurrentConfig.symmetric_algorithm)
             TRY
-                Plaintext = SymmetricCipher.decrypt(bundle.ciphertext, SymmetricKey, IV) // AEAD handles auth tag
-            CATCH CryptoError AS e // e.g., AuthenticationTagMismatch, DecryptionFailed
-                LOG_WARNING("Symmetric decryption failed for suite " + this.my_suite_id + " (bundle from " + bundle.suite_id_used + "): " + e.message)
-                THROW DecryptionError("Underlying symmetric decryption failed (e.g., bad key or tampered data).")
+                // 1. Classical KEM decapsulation
+                ClassicalSharedSecretPart = KEM_LIBRARY.hybrid_kem_classical_decapsulate(
+                    ClassicalKEMAlg,
+                    bundle.classical_kem_ephemeral_public_key,
+                    ClassicalRecipientSK
+                )
+
+                // 2. PQC KEM decapsulation
+                PqcSharedSecretPart = KEM_LIBRARY.pqc_kem_decapsulate(
+                    PqcKEMAlg,
+                    bundle.pqc_kem_encapsulated_key,
+                    PqcRecipientSK
+                )
+
+                // 3. Combine shared secrets and derive symmetric key using KDF
+                CombinedKEMSecrets = CONCATENATE(ClassicalSharedSecretPart, PqcSharedSecretPart)
+                KdfSaltForHybridSK = bundle.kdf_salt_for_hybrid_sk_derivation // Must use salt from bundle
+                
+                DerivedSymmetricKey = KDF_LIBRARY.derive(
+                    CombinedKEMSecrets,
+                    KdfSaltForHybridSK, 
+                    KdfForHybridSKAlg,
+                    GET_SYMMETRIC_KEY_LENGTH(SymmetricAlg),
+                    "FavaHybridSymmetricKeyDerivationContext" 
+                )
+
+                // 4. Symmetric decryption
+                PlaintextBytes = SYMMETRIC_CIPHER_LIBRARY.decrypt_aead(
+                    SymmetricAlg,
+                    DerivedSymmetricKey,
+                    bundle.symmetric_cipher_iv_or_nonce,
+                    bundle.encrypted_data_ciphertext,
+                    bundle.authentication_tag,
+                    NULL // AAD
+                )
+
+                IF PlaintextBytes IS NULL THEN 
+                    THROW DecryptionError("Symmetric decryption failed: authentication tag mismatch or corrupted data.")
+                END IF
+
+                RETURN PlaintextBytes
+            CATCH CryptoError AS e 
+                LOG_WARNING("Hybrid decryption failed for suite " + this.my_suite_id + " (bundle from " + bundle.suite_id_used + "): " + e.message)
+                THROW DecryptionError("Underlying cryptographic operation failed during hybrid decryption: " + e.message)
             END TRY
-            RETURN Plaintext
         END FUNCTION
     END CLASS
 
@@ -327,50 +434,44 @@ MODULE BackendCryptoService
         BEGIN
             // Attempt to parse a common bundle header to find suite_id_used (C7.5)
             // This allows a targeted attempt before iterating the full list.
-            ParsedHeader = PARSE_COMMON_ENCRYPTED_BUNDLE_HEADER(raw_encrypted_bytes) // Returns { suite_id, actual_bundle_data_for_handler } or failure
+            // The PARSE_COMMON_ENCRYPTED_BUNDLE_HEADER should be able to produce a HybridEncryptedBundle or a compatible structure.
+            ParsedBundleAttempt = PARSE_COMMON_ENCRYPTED_BUNDLE_HEADER(raw_encrypted_bytes) // Returns { suite_id, bundle_object: HybridEncryptedBundle } or failure
             
             AppConfig = GlobalConfig.GetCryptoSettings()
             DecryptionHandlerInstances = GetConfiguredDecryptionHandlers() // Already in preferred order
 
-            IF ParsedHeader.was_successful AND ParsedHeader.suite_id IS NOT NULL THEN
-                // Try the handler matching the bundle's declared suite_id first, if it's in our configured list
+            IF ParsedBundleAttempt.was_successful AND ParsedBundleAttempt.suite_id IS NOT NULL THEN
                 FOR EACH Handler IN DecryptionHandlerInstances
-                    IF Handler.get_suite_id() == ParsedHeader.suite_id THEN
-                        LOG_INFO("Attempting decryption with handler '" + ParsedHeader.suite_id + "' identified from bundle header.")
+                    IF Handler.get_suite_id() == ParsedBundleAttempt.suite_id THEN
+                        LOG_INFO("Attempting decryption with handler '" + ParsedBundleAttempt.suite_id + "' identified from bundle header.")
                         TRY
-                            SuiteSpecificConfig = AppConfig.data_at_rest.suites[ParsedHeader.suite_id]
-                            // Assume ParsedHeader.actual_bundle_data_for_handler is the EncryptedBundle structure
-                            RETURN Handler.decrypt(ParsedHeader.actual_bundle_data_for_handler, key_material_input, SuiteSpecificConfig)
+                            SuiteSpecificConfig = AppConfig.data_at_rest.suites[ParsedBundleAttempt.suite_id]
+                            RETURN Handler.decrypt(ParsedBundleAttempt.bundle_object, key_material_input, SuiteSpecificConfig)
                         CATCH DecryptionError AS e
-                            LOG_INFO("Targeted decryption with handler '" + ParsedHeader.suite_id + "' failed: " + e.message)
-                            // Fall through to iterate all configured handlers
-                            BREAK // Stop trying this targeted handler, proceed to general iteration
+                            LOG_INFO("Targeted decryption with handler '" + ParsedBundleAttempt.suite_id + "' failed: " + e.message)
+                            BREAK 
                         CATCH Exception AS ex
-                            LOG_ERROR("Unexpected error with targeted handler '" + ParsedHeader.suite_id + "': " + ex.message)
+                            LOG_ERROR("Unexpected error with targeted handler '" + ParsedBundleAttempt.suite_id + "': " + ex.message)
                             BREAK
                         END TRY
                     END IF
                 END FOR
             END IF
 
-            // Iterate through all configured decryption handlers in the specified order
             FOR EACH Handler IN DecryptionHandlerInstances
                 SuiteID = Handler.get_suite_id()
                 LOG_INFO("Attempting decryption with handler from configured order: " + SuiteID)
                 TRY
-                    // Each handler might need to re-parse the raw_encrypted_bytes into its expected EncryptedBundle format
-                    // Or, if PARSE_COMMON_ENCRYPTED_BUNDLE_HEADER was very generic, its output could be used.
-                    // For robustness, assume handler can take raw bytes or a pre-parsed common structure.
-                    // Let's assume we need to re-construct/parse the bundle for each handler if header parsing wasn't definitive.
-                    ThisHandlerBundle = PARSE_BUNDLE_FOR_HANDLER(raw_encrypted_bytes, SuiteID) // Handler-specific parsing
+                    // Each handler might need to re-parse the raw_encrypted_bytes into its expected HybridEncryptedBundle format
+                    // if the common parser wasn't sufficient or this is a non-hybrid handler.
+                    ThisHandlerBundle = PARSE_BUNDLE_FOR_HANDLER(raw_encrypted_bytes, SuiteID) // This should produce HybridEncryptedBundle for HybridPqcCryptoHandler
                     SuiteSpecificConfig = AppConfig.data_at_rest.suites[SuiteID]
                     RETURN Handler.decrypt(ThisHandlerBundle, key_material_input, SuiteSpecificConfig)
                 CATCH DecryptionError AS e
                     LOG_INFO("Decryption with handler '" + SuiteID + "' failed: " + e.message + ". Trying next.")
-                    // Continue to the next handler in the list
                 CATCH BundleParsingError AS bpe 
                     LOG_INFO("Could not parse bundle for handler '" + SuiteID + "': " + bpe.message + ". Trying next.")
-                CATCH Exception AS ex // Catch other unexpected errors from this handler
+                CATCH Exception AS ex 
                     LOG_ERROR("Unexpected error with handler '" + SuiteID + "' during decryption attempt: " + ex.message + ". Trying next.")
                 END TRY
             END FOR

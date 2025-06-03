@@ -48,6 +48,11 @@ EXCEPTION `KeyManagementError` (inherits Exception)
 
 ## 5. Key Management Functions
 
+// ASSUMPTION: For the Fava-managed key modes (`PASSPHRASE_DERIVED`, `EXTERNAL_KEY_FILE`),
+// the derived or loaded key material is obtained on-demand for each cryptographic operation
+// and is NOT persistently stored or cached by Fava's core application logic.
+// Secure storage of the original passphrase or external key files remains the user's responsibility.
+
 FUNCTION `derive_kem_keys_from_passphrase(passphrase, salt, kdf_algorithm, classical_kem_spec, pqc_kem_spec)`:
     INPUT: `passphrase` (STRING), `salt` (BYTES), `kdf_algorithm` (STRING), `classical_kem_spec` (STRING), `pqc_kem_spec` (STRING)
     OUTPUT: TUPLE (`classical_key_pair`, `pqc_key_pair`) OR RAISE `KeyManagementError`
