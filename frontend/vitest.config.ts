@@ -12,6 +12,7 @@ export default defineConfig({
     environment: 'node', // Or 'jsdom' if browser APIs are needed and not heavily mocked
     include: [
       path.resolve(currentDirname, '../tests/granular/pqc_wasm_module_integrity').replace(/\\/g, '/') + '/**/*.test.ts',
+      path.resolve(currentDirname, '../tests/performance').replace(/\\/g, '/') + '/**/*.test.ts',
       // Add other test paths here if needed in the future
     ],
     // Optionally, if OQS is a global that needs setup or if using jsdom:
