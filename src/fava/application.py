@@ -20,6 +20,8 @@ from fava.pqc.proxy_awareness import get_pqc_status_from_config
 from fava.pqc.proxy_awareness import determine_effective_pqc_status
 from fava.pqc.configuration_validator import validate_pqc_tls_embedded_server_options
 from fava.pqc.configuration_validator import detect_available_python_pqc_kems
+from fava.pqc.app_startup import initialize_backend_crypto_service # Added for PQC
+from fava.pqc.exceptions import ApplicationStartupError as PQCApplicationStartupError # Added for PQC
 from datetime import datetime
 from datetime import timezone
 from functools import lru_cache
@@ -532,7 +534,30 @@ def create_app(
     )
     fava_app.config["ASSUME_PQC_TLS_PROXY_ENABLED"] = assume_pqc_tls_proxy_enabled
     fava_app.config["PQC_TLS_EMBEDDED_SERVER_KEMS"] = pqc_tls_embedded_server_kems or []
+    fava_app.config["PQC_TLS_EMBEDDED_SERVER_KEMS"] = pqc_tls_embedded_server_kems or []
     fava_app.config["VERBOSE_LOGGING"] = verbose_logging
+
+    # Initialize PQC Crypto Service (must happen after LEDGERS is configured if it needs FavaOptions)
+    # We need to access the FavaOptions for the *first* ledger to get the crypto settings file path.
+    # This assumes that the crypto settings are global for the Fava instance,
+    # and the path is taken from the first ledger's configuration.
+    # A more sophisticated setup might involve per-ledger crypto settings or a global Fava app config for the path.
+    crypto_settings_file_path = None
+    if fava_app.config["LEDGERS"].ledgers: # Check if ledgers are loaded/available
+        first_ledger = fava_app.config["LEDGERS"].ledgers[0]
+        crypto_settings_file_path = first_ledger.fava_options.fava_crypto_settings_file
+        log.info(f"PQC Crypto Settings File from FavaOptions: {crypto_settings_file_path}")
+
+    try:
+        initialize_backend_crypto_service(crypto_settings_file=crypto_settings_file_path)
+        log.info("PQC Backend Crypto Service initialized via create_app.")
+        # Store PQC app config if needed, e.g., for frontend exposure
+        # from fava.pqc.global_config import GlobalConfig
+        # fava_app.config["PQC_APP_CONFIG"] = GlobalConfig.get_crypto_settings(file_path=crypto_settings_file_path)
+    except PQCApplicationStartupError as e:
+        log.critical(f"PQC initialization failed during Fava app startup: {e}")
+        # Depending on policy, you might re-raise or handle this to prevent app start
+        raise RuntimeError(f"PQC Critical Startup Failure: {e}") from e
 
 
     # PQC Data in Transit: Initialization logging and validation
@@ -566,4 +591,3 @@ def create_app(
 
 
 #: This is still provided for compatibility but will be removed at some point.
-app = create_app([])

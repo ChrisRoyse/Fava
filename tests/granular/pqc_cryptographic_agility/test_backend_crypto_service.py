@@ -97,15 +97,21 @@ class TestBackendCryptoServiceRegistration:
         }
         
         mock_handler_instance = mocker.Mock(spec=CryptoHandler)
-        # The factory is the class itself in the current implementation of app_startup
-        mock_factory_class = mocker.patch("fava.pqc.backend_crypto_service.HybridPqcCryptoHandler", autospec=True)
-        mock_factory_class.return_value = mock_handler_instance
         
-        BackendCryptoService.register_crypto_handler("SUITE_F", mock_factory_class)
+        # Define a mock factory function
+        factory_call_args_storage = {} # To store arguments passed to the factory
+        def mock_factory(suite_id_arg, suite_config_arg):
+            factory_call_args_storage['suite_id'] = suite_id_arg
+            factory_call_args_storage['suite_config'] = suite_config_arg
+            return mock_handler_instance
+
+        BackendCryptoService.register_crypto_handler("SUITE_F", mock_factory)
         
         handler = BackendCryptoService.get_crypto_handler("SUITE_F")
+        
         mock_global_config_get.assert_called_once()
-        mock_factory_class.assert_called_once_with("SUITE_F", mock_suite_config_f)
+        assert factory_call_args_storage.get('suite_id') == "SUITE_F"
+        assert factory_call_args_storage.get('suite_config') == mock_suite_config_f
         assert handler is mock_handler_instance
 
     @pytest.mark.critical_path
@@ -216,7 +222,7 @@ class TestHybridPqcCryptoHandler:
 
         invalid_config = self.valid_suite_config.copy()
         del invalid_config["pqc_kem_algorithm"]
-        with pytest.raises(ConfigurationError, match="requires pqc_kem_algorithm"):
+        with pytest.raises(ConfigurationError, match=r"requires .*pqc_kem_algorithm.*in suite configuration"):
             HybridPqcCryptoHandler(self.suite_id, invalid_config)
 
     @pytest.mark.suite_specific_HYBRID_TEST
@@ -332,39 +338,39 @@ class TestHashingProvider:
     def setup_method(self):
         GlobalConfig.reset_cache()
 
-@pytest.mark.config_dependent
-@pytest.mark.backend
-@pytest.mark.parametrize("algo_name, expected_hasher_class_name", [
-    ("SHA3-256", "SHA3_256HasherImpl"),
-    ("SHA256", "SHA256HasherImpl"),
-])
-def test_tc_agl_hp_001_get_configured_hasher(self, mocker, algo_name, expected_hasher_class_name):
-    mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_PATH}.get_crypto_settings")
-    mock_global_config_get.return_value = {"hashing": {"default_algorithm": algo_name}}
-    
-    mock_hasher_instance = mocker.Mock(spec=HasherInterface)
-    mock_internal_get_hasher = mocker.patch.object(HashingProvider, "_get_hasher_instance", return_value=mock_hasher_instance)
+    @pytest.mark.config_dependent
+    @pytest.mark.backend
+    @pytest.mark.parametrize("algo_name, expected_hasher_class_name", [
+        ("SHA3-256", "SHA3_256HasherImpl"),
+        ("SHA256", "SHA256HasherImpl"),
+    ])
+    def test_tc_agl_hp_001_get_configured_hasher(self, mocker, algo_name, expected_hasher_class_name):
+        mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_PATH}.get_crypto_settings")
+        mock_global_config_get.return_value = {"hashing": {"default_algorithm": algo_name}}
+        
+        mock_hasher_instance = mocker.Mock(spec=HasherInterface)
+        mock_internal_get_hasher = mocker.patch.object(HashingProvider, "_get_hasher_instance", return_value=mock_hasher_instance)
 
-    hasher = HashingProvider.get_configured_hasher()
+        hasher = HashingProvider.get_configured_hasher()
 
-    mock_global_config_get.assert_called_once()
-    mock_internal_get_hasher.assert_called_once_with(algo_name)
-    assert hasher is mock_hasher_instance
+        mock_global_config_get.assert_called_once()
+        mock_internal_get_hasher.assert_called_once_with(algo_name)
+        assert hasher is mock_hasher_instance
 
-@pytest.mark.config_dependent
-@pytest.mark.error_handling
-@pytest.mark.backend
-def test_tc_agl_hp_002_get_configured_hasher_fallback(self, mocker, caplog):
-    caplog.set_level(logging.WARNING)
-    mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_PATH}.get_crypto_settings")
-    mock_global_config_get.return_value = {"hashing": {"default_algorithm": "UNAVAILABLE_HASH"}}
-    mock_sha3_hasher = mocker.Mock(spec=HasherInterface)
-    def get_hasher_side_effect(algo):
-        if algo == "UNAVAILABLE_HASH":
-            raise AlgorithmUnavailableError("Mocked unavailable")
-        elif algo == "SHA3-256":
-            return mock_sha3_hasher
-        pytest.fail(f"Unexpected algo in _get_hasher_instance mock: {algo}")
+    @pytest.mark.config_dependent
+    @pytest.mark.error_handling
+    @pytest.mark.backend
+    def test_tc_agl_hp_002_get_configured_hasher_fallback(self, mocker, caplog):
+        caplog.set_level(logging.WARNING)
+        mock_global_config_get = mocker.patch(f"{GLOBAL_CONFIG_PATH}.get_crypto_settings")
+        mock_global_config_get.return_value = {"hashing": {"default_algorithm": "UNAVAILABLE_HASH"}}
+        mock_sha3_hasher = mocker.Mock(spec=HasherInterface)
+        def get_hasher_side_effect(algo):
+            if algo == "UNAVAILABLE_HASH":
+                raise AlgorithmUnavailableError("Mocked unavailable")
+            elif algo == "SHA3-256":
+                return mock_sha3_hasher
+            pytest.fail(f"Unexpected algo in _get_hasher_instance mock: {algo}")
 
         mock_internal_get_hasher = mocker.patch.object(HashingProvider, "_get_hasher_instance", side_effect=get_hasher_side_effect)
         

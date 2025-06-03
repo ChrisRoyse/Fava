@@ -3,7 +3,7 @@
 Handles the initialization of PQC cryptographic services during Fava application startup.
 """
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from .global_config import GlobalConfig
 from .backend_crypto_service import BackendCryptoService, HybridPqcCryptoHandler # Add other handlers as they are created
@@ -11,19 +11,23 @@ from .exceptions import ApplicationStartupError, CriticalConfigurationError, Con
 
 logger = logging.getLogger(__name__)
 
-def initialize_backend_crypto_service() -> None:
+def initialize_backend_crypto_service(crypto_settings_file: Optional[str] = None) -> None:
     """
     Initializes the BackendCryptoService by loading configuration and registering handlers.
     Corresponds to pseudocode: PROCEDURE InitializeBackendCryptoService
+
+    Args:
+        crypto_settings_file: Optional path to the PQC crypto settings file.
+                              If None, GlobalConfig will use its default.
     """
     logger.info("Initializing PQC Backend Crypto Service...")
     try:
         # Ensure GlobalConfig cache is fresh for startup, or load if not already.
         # load_crypto_settings will raise if critical issues are found.
         GlobalConfig.reset_cache() # Ensure fresh load on startup
-        app_config = GlobalConfig.get_crypto_settings()
+        app_config = GlobalConfig.get_crypto_settings(file_path=crypto_settings_file)
     except CriticalConfigurationError as e:
-        logger.critical(f"Failed to load critical PQC crypto settings during startup: {e}")
+        logger.critical(f"Failed to load critical PQC crypto settings during startup (path: {crypto_settings_file}): {e}")
         raise ApplicationStartupError(f"PQC crypto settings load failure: {e}") from e
 
     # Register handlers based on configuration

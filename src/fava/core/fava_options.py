@@ -98,6 +98,7 @@ class FavaOptions:
     default_file: str | None = None
     default_page: str = "income_statement/"
     fiscal_year_end: FiscalYearEnd = END_OF_YEAR
+    fava_crypto_settings_file: str | None = None # Added for PQC integration
     import_config: str | None = None
     import_dirs: tuple[str, ...] = ()
     indent: int = 2
@@ -177,7 +178,11 @@ All_OPTS = {f.name for f in _fields}
 BOOL_OPTS = {f.name for f in _fields if str(f.type) == "bool"}
 INT_OPTS = {f.name for f in _fields if str(f.type) == "int"}
 TUPLE_OPTS = {f.name for f in _fields if f.type.startswith("tuple[str,")}
-STR_OPTS = {f.name for f in _fields if f.type.startswith("str")}
+STR_OPTS = {
+    f.name
+    for f in _fields
+    if f.type.startswith("str") or f.type.startswith("str | None")
+}
 
 
 def parse_option_custom_entry(entry: Custom, options: FavaOptions) -> None:

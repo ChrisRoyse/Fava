@@ -5,6 +5,7 @@ Manages cryptographic handlers, provides hashing services, and orchestrates decr
 """
 import logging
 from typing import Any, Dict, List, Optional, Callable, Union
+import json # Added for robust JSON parsing
 
 from .global_config import GlobalConfig
 from .interfaces import (
@@ -78,26 +79,30 @@ class BackendCryptoService:
             raise AlgorithmNotFoundError(f"Handler for suite '{suite_id}' not registered.")
 
         handler_entry = cls._handler_registry[suite_id]
+        handler_entry = cls._handler_registry[suite_id]
         if callable(handler_entry) and not isinstance(handler_entry, CryptoHandler): # It's a factory
             try:
                 app_config = GlobalConfig.get_crypto_settings()
                 # Ensure structure for suites exists
-                if not (app_config 
-                        and "data_at_rest" in app_config 
+                if not (app_config
+                        and "data_at_rest" in app_config
                         and "suites" in app_config["data_at_rest"]
                         and suite_id in app_config["data_at_rest"]["suites"]):
                     raise ConfigurationError(f"Missing suite configuration for {suite_id} needed by factory.")
-                
+
                 suite_config = app_config["data_at_rest"]["suites"][suite_id]
-                return handler_entry(suite_id, suite_config) # Factory creates instance
+                # Factory creates instance, then cache it
+                instance = handler_entry(suite_id, suite_config)
+                cls._handler_registry[suite_id] = instance # Cache the instance
+                logger.debug(f"Instantiated and cached handler for suite: {suite_id}")
+                return instance
             except Exception as e:
                 logger.error(f"Factory for suite '{suite_id}' failed to create handler: {e}")
                 raise AlgorithmUnavailableError(f"Factory for suite '{suite_id}' failed: {e}") from e
         elif isinstance(handler_entry, CryptoHandler):
-            return handler_entry # It's already an instance
+            return handler_entry # It's already an instance (was cached or registered as instance)
         else: # Should not happen if registration is type-checked
             msg = f"Invalid entry in handler registry for suite '{suite_id}'."
-            logger.critical(msg)
             raise CriticalConfigurationError(msg)
 
 
@@ -337,32 +342,55 @@ class HashingProvider:
             raise AlgorithmUnavailableError(f"Unsupported hash algorithm: {algorithm_name}")
 
 
-def parse_common_encrypted_bundle_header(raw_encrypted_bytes: bytes) -> Dict[str, Any]:
+def parse_common_encrypted_bundle_header(raw_encrypted_bytes: Union[bytes, Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Rudimentary parsing of a common bundle header to extract suite_id.
-    This is a placeholder. Real implementation would depend on bundle format.
-    Corresponds to pseudocode: FUNCTION PARSE_COMMON_ENCRYPTED_BUNDLE_HEADER
+    Parses a common bundle header to extract suite_id and the bundle object.
+    Assumes the raw_encrypted_bytes might be a UTF-8 encoded JSON string
+    representing the HybridEncryptedBundle, or a pre-parsed dictionary (for testing).
+    VULN-PQC-AGL-002: This function needs robust parsing.
     """
-    # Placeholder logic: assumes suite_id is, for example, the first 32 bytes as UTF-8 string.
-    # This is highly dependent on the actual bundle structure.
     try:
-        # This is a very naive example and likely not robust.
-        # A real implementation would parse a defined structure (e.g., JSON prefix, TLV).
-        # For now, let's assume the bundle itself is the HybridEncryptedBundle dict for test purposes
-        # if it's passed directly as a dict, or we can't parse it from raw_bytes yet.
-        if isinstance(raw_encrypted_bytes, dict) and "suite_id_used" in raw_encrypted_bytes:
-             # This branch is for when tests might pass a pre-parsed dict-like bundle
-            return {
-                "was_successful": True,
-                "suite_id": raw_encrypted_bytes["suite_id_used"],
-                "bundle_object": raw_encrypted_bytes # Pass the dict as the "parsed" bundle
-            }
-        # If it's bytes, we need a real parsing strategy. For now, fail.
-        logger.warning("parse_common_encrypted_bundle_header: Cannot parse raw_bytes yet.")
-        raise BundleParsingError("Raw byte bundle parsing not fully implemented for header.")
-    except Exception as e:
-        logger.error(f"Failed to parse common bundle header: {e}")
-        return {"was_successful": False, "suite_id": None, "bundle_object": None}
+        if isinstance(raw_encrypted_bytes, dict):
+            # If it's already a dictionary, assume it's a pre-parsed bundle (e.g., from tests)
+            bundle_data = raw_encrypted_bytes
+        elif isinstance(raw_encrypted_bytes, bytes):
+            try:
+                # Attempt to decode as UTF-8 and parse as JSON
+                bundle_str = raw_encrypted_bytes.decode('utf-8')
+                bundle_data = json.loads(bundle_str)
+                if not isinstance(bundle_data, dict):
+                    raise BundleParsingError("Parsed JSON bundle is not a dictionary.")
+            except UnicodeDecodeError as ude:
+                logger.error(f"Bundle header decode error: {ude}")
+                raise BundleParsingError(f"Bundle header is not valid UTF-8: {ude}") from ude
+            except json.JSONDecodeError as jde:
+                logger.error(f"Bundle header JSON parsing error: {jde}")
+                raise BundleParsingError(f"Bundle header is not valid JSON: {jde}") from jde
+        else:
+            raise BundleParsingError(f"Unsupported type for bundle header: {type(raw_encrypted_bytes)}")
+
+        # Validate essential fields
+        suite_id = bundle_data.get("suite_id_used")
+        format_id = bundle_data.get("format_identifier") # Example: FAVA_PQC_HYBRID_V1
+
+        if not suite_id or not isinstance(suite_id, str):
+            raise BundleParsingError("Missing or invalid 'suite_id_used' in bundle header.")
+        if not format_id or not isinstance(format_id, str): # Basic check for format identifier
+            logger.warning("Missing or invalid 'format_identifier' in bundle header.")
+            # Depending on strictness, this could also be an error.
+            # For now, we prioritize suite_id for handler selection.
+
+        return {
+            "was_successful": True,
+            "suite_id": suite_id,
+            "bundle_object": bundle_data # Return the full parsed dictionary
+        }
+    except BundleParsingError as bpe: # Catch our specific parsing errors
+        logger.error(f"Bundle parsing error: {bpe}")
+        return {"was_successful": False, "suite_id": None, "bundle_object": None, "error": str(bpe)}
+    except Exception as e: # Catch any other unexpected errors
+        logger.error(f"Unexpected error during bundle header parsing: {e}")
+        return {"was_successful": False, "suite_id": None, "bundle_object": None, "error": str(e)}
 
 
 def decrypt_data_at_rest_with_agility(
