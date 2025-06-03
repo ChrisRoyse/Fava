@@ -21,5 +21,10 @@ export const favaPqcWasmConfig: PqcWasmConfig = {
 
 export function getFavaPqcWasmConfig(): PqcWasmConfig {
   // In a real scenario, this might involve more complex logic to fetch or select config
-  return favaPqcWasmConfig;
+  const config = favaPqcWasmConfig;
+  if (config.pqcWasmPublicKeyDilithium3Base64 === 'REPLACE_WITH_ACTUAL_DILITHIUM3_PUBLIC_KEY_BASE64') {
+    // This error message is more specific for the config retrieval step.
+    throw new Error('Placeholder PQC public key detected in configuration. A valid key must be provided for secure operation.');
+  }
+  return config;
 }

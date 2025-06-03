@@ -1,6 +1,5 @@
-// @ts-expect-error: OQS is an external library (liboqs-js) and will be globally available.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const OQS: any; // Declaration for liboqs-js global object
+// The global OQS object is declared in pqcOqsInterfaces.ts
+// We will access it directly inside the function to ensure test stubs are picked up.
 
 /**
  * Decodes a Base64 string to a Uint8Array.
@@ -8,16 +7,31 @@ declare const OQS: any; // Declaration for liboqs-js global object
  * @returns A Uint8Array containing the decoded bytes, or null if decoding fails.
  */
 function decodeBase64ToUint8Array(base64String: string): Uint8Array | null {
+  // Validate Base64 format (VULN-002)
+  // Regex allows for optional padding and ensures string length is a multiple of 4.
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64String)) {
+    console.error('Invalid Base64 format detected for string.');
+    return null;
+  }
+
+  // Validate length constraints (VULN-002)
+  const MAX_BASE64_LENGTH = 8192; // Approx 6KB decoded
+  if (base64String.length === 0 || base64String.length > MAX_BASE64_LENGTH) {
+    console.error(`Base64 string length (current: ${String(base64String.length)}) out of acceptable range (1-${String(MAX_BASE64_LENGTH)}).`);
+    return null;
+  }
+
   try {
-    const binaryString = atob(base64String);
+    const binaryString = atob(base64String); // This can throw if chars are not in Base64 alphabet
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
-  } catch (error) {
-    console.error('Base64 decoding failed:', error);
+  } catch (decodingError) {
+    const message = decodingError instanceof Error ? decodingError.message : String(decodingError);
+    console.error(`Base64 decoding failed (atob error or other): ${message}`);
     return null;
   }
 }
@@ -46,25 +60,50 @@ export async function verifyPqcWasmSignature(
   }
 
   try {
-    // This assumes OQS.Signature is available and works as described.
-    // Actual liboqs-js usage might differ and require async initialization.
-    const pqcVerifier = new OQS.Signature(algorithmName);
-    if (!pqcVerifier) { // Basic check, library might throw instead
-      console.error(`Failed to obtain/initialize PQC verifier for algorithm: ${algorithmName}`);
+    const CurrentOQS = globalThis.OQS; // Access global OQS here
+
+    // VULN-003: Enhanced validation for globalThis.OQS
+    if (
+      !CurrentOQS || // This already covers null and undefined
+      typeof CurrentOQS !== 'object' ||
+      typeof CurrentOQS.Signature !== 'function'
+    ) {
+      console.error('OQS library is not available, not an object, or OQS.Signature constructor is missing globally.');
+      return false;
+    }
+    
+    let pqcVerifier;
+    try {
+      pqcVerifier = new CurrentOQS.Signature(algorithmName);
+    } catch (e) {
+      const constructorError = e instanceof Error ? e.message : String(e);
+      console.error(`Failed to instantiate OQS.Signature for ${algorithmName}: ${constructorError}`);
+      return false;
+    }
+
+    if (typeof pqcVerifier.verify !== 'function') {
+      console.error(`Failed to obtain/initialize PQC verifier for algorithm: ${algorithmName}, or verifier is invalid.`);
       return false;
     }
 
     const publicKeyBytes = decodeBase64ToUint8Array(publicKeyBase64);
-    if (!publicKeyBytes || publicKeyBytes.length === 0) {
-      console.error('PQC public key decoding failed or resulted in an empty key.');
+    if (!publicKeyBytes) { 
+      console.error('PQC public key decoding failed or resulted in a null key.');
       return false;
+    }
+    if (publicKeyBytes.length === 0) {
+        console.error('PQC public key decoding resulted in an empty key.');
+        return false;
     }
 
     const messageBytes = new Uint8Array(wasmBuffer);
     const signatureBytes = new Uint8Array(signatureBuffer);
 
-    // The OQS.Signature.verify method is assumed to be async based on typical JS crypto libs
-    const isVerified: boolean = await pqcVerifier.verify(messageBytes, signatureBytes, publicKeyBytes);
+    const isVerified: boolean = await pqcVerifier.verify(
+      messageBytes,
+      signatureBytes,
+      publicKeyBytes,
+    );
 
     if (isVerified) {
       console.info(`PQC signature VERIFIED successfully for algorithm: ${algorithmName}`);
@@ -78,3 +117,4 @@ export async function verifyPqcWasmSignature(
     return false;
   }
 }
+// This should be the end of the file.
