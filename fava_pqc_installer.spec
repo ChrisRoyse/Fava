@@ -86,6 +86,7 @@ all_metadata.extend(copy_metadata('pyexcel_xls'))
 all_metadata.extend(copy_metadata('pyexcel_xlsx'))
 all_metadata.extend(copy_metadata('pyexcel_ods3'))
 all_metadata.extend(copy_metadata('pyexcel_text'))
+all_metadata.extend(copy_metadata('beancount'))    # Added based on debug_incorrect_bundle_structure_report_v10.md
 # Add any other packages for which metadata is essential
 
 # Fava's core data files (renamed from fava_datas for clarity with report example)
@@ -101,7 +102,7 @@ current_fava_datas = [
 pyexcel_specific_data = collect_data_files('pyexcel', include_py_files=False)
 pyexcel_io_specific_data = collect_data_files('pyexcel_io', include_py_files=False)
 
-datas_for_analysis = current_fava_datas + all_metadata + pyexcel_specific_data + pyexcel_io_specific_data
+datas_for_analysis = current_fava_datas + all_metadata + pyexcel_specific_data + pyexcel_io_specific_data + [('.venv/Lib/site-packages/beancount/VERSION', 'beancount')]
 
 # --- Analysis ---
 # pathex: Paths to search for imports. Add 'src' to find the fava package.

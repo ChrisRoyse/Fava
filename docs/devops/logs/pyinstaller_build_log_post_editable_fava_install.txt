@@ -1,0 +1,190 @@
+Cleaning directories (dist and build)... 
+Installing Fava in editable mode (pip install -e .)... 
+Obtaining file:///C:/code/ChrisFava
+  Installing build dependencies ... done
+  Checking if build backend supports build_editable ... done
+  Getting requirements to build editable ... done
+  Preparing editable metadata (pyproject.toml) ... done
+Requirement already satisfied: Babel<3,>=2.11 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (2.17.0)
+Requirement already satisfied: Flask-Babel<5,>=3 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (4.0.0)
+Requirement already satisfied: Flask<4,>=2.2 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.1.1)
+Requirement already satisfied: Jinja2<4,>=3 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.1.6)
+Requirement already satisfied: Werkzeug<4,>=2.2 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.1.3)
+Requirement already satisfied: beancount<4,>=2 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.1.0)
+Requirement already satisfied: beanquery<0.3,>=0.1 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (0.2.0)
+Requirement already satisfied: beangulp>=0.1 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (0.2.0)
+Requirement already satisfied: cheroot<11,>=8 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (10.0.1)
+Requirement already satisfied: click<9,>=7 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (8.2.1)
+Requirement already satisfied: markdown2<3,>=2.3.0 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (2.5.3)
+Requirement already satisfied: ply>=3.4 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.11)
+Requirement already satisfied: simplejson<4,>=3.16.0 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (3.20.1)
+Requirement already satisfied: watchfiles>=0.20.0 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (1.0.5)
+Requirement already satisfied: argon2-cffi>=21.0.0 in c:\code\chrisfava\.venv\lib\site-packages (from fava==0.1.dev28+g42c5822.d20250604) (25.1.0)
+Requirement already satisfied: python-dateutil>=2.6.0 in c:\code\chrisfava\.venv\lib\site-packages (from beancount<4,>=2->fava==0.1.dev28+g42c5822.d20250604) (2.9.0.post0)
+Requirement already satisfied: regex>=2022.9.13 in c:\code\chrisfava\.venv\lib\site-packages (from beancount<4,>=2->fava==0.1.dev28+g42c5822.d20250604) (2024.11.6)
+Requirement already satisfied: tatsu-lts in c:\code\chrisfava\.venv\lib\site-packages (from beanquery<0.3,>=0.1->fava==0.1.dev28+g42c5822.d20250604) (5.13.1)
+Requirement already satisfied: more-itertools>=2.6 in c:\code\chrisfava\.venv\lib\site-packages (from cheroot<11,>=8->fava==0.1.dev28+g42c5822.d20250604) (10.7.0)
+Requirement already satisfied: jaraco.functools in c:\code\chrisfava\.venv\lib\site-packages (from cheroot<11,>=8->fava==0.1.dev28+g42c5822.d20250604) (4.1.0)
+Requirement already satisfied: colorama in c:\code\chrisfava\.venv\lib\site-packages (from click<9,>=7->fava==0.1.dev28+g42c5822.d20250604) (0.4.6)
+Requirement already satisfied: blinker>=1.9.0 in c:\code\chrisfava\.venv\lib\site-packages (from Flask<4,>=2.2->fava==0.1.dev28+g42c5822.d20250604) (1.9.0)
+Requirement already satisfied: itsdangerous>=2.2.0 in c:\code\chrisfava\.venv\lib\site-packages (from Flask<4,>=2.2->fava==0.1.dev28+g42c5822.d20250604) (2.2.0)
+Requirement already satisfied: markupsafe>=2.1.1 in c:\code\chrisfava\.venv\lib\site-packages (from Flask<4,>=2.2->fava==0.1.dev28+g42c5822.d20250604) (3.0.2)
+Requirement already satisfied: pytz>=2022.7 in c:\code\chrisfava\.venv\lib\site-packages (from Flask-Babel<5,>=3->fava==0.1.dev28+g42c5822.d20250604) (2025.2)
+Requirement already satisfied: argon2-cffi-bindings in c:\code\chrisfava\.venv\lib\site-packages (from argon2-cffi>=21.0.0->fava==0.1.dev28+g42c5822.d20250604) (21.2.0)
+Requirement already satisfied: beautifulsoup4 in c:\code\chrisfava\.venv\lib\site-packages (from beangulp>=0.1->fava==0.1.dev28+g42c5822.d20250604) (4.13.4)
+Requirement already satisfied: chardet in c:\code\chrisfava\.venv\lib\site-packages (from beangulp>=0.1->fava==0.1.dev28+g42c5822.d20250604) (5.2.0)
+Requirement already satisfied: lxml in c:\code\chrisfava\.venv\lib\site-packages (from beangulp>=0.1->fava==0.1.dev28+g42c5822.d20250604) (5.4.0)
+Requirement already satisfied: six>=1.5 in c:\code\chrisfava\.venv\lib\site-packages (from python-dateutil>=2.6.0->beancount<4,>=2->fava==0.1.dev28+g42c5822.d20250604) (1.17.0)      
+Requirement already satisfied: anyio>=3.0.0 in c:\code\chrisfava\.venv\lib\site-packages (from watchfiles>=0.20.0->fava==0.1.dev28+g42c5822.d20250604) (4.9.0)
+Requirement already satisfied: idna>=2.8 in c:\code\chrisfava\.venv\lib\site-packages (from anyio>=3.0.0->watchfiles>=0.20.0->fava==0.1.dev28+g42c5822.d20250604) (3.10)
+Requirement already satisfied: sniffio>=1.1 in c:\code\chrisfava\.venv\lib\site-packages (from anyio>=3.0.0->watchfiles>=0.20.0->fava==0.1.dev28+g42c5822.d20250604) (1.3.1)
+Requirement already satisfied: cffi>=1.0.1 in c:\code\chrisfava\.venv\lib\site-packages (from argon2-cffi-bindings->argon2-cffi>=21.0.0->fava==0.1.dev28+g42c5822.d20250604) (1.17.1)
+Requirement already satisfied: pycparser in c:\code\chrisfava\.venv\lib\site-packages (from cffi>=1.0.1->argon2-cffi-bindings->argon2-cffi>=21.0.0->fava==0.1.dev28+g42c5822.d20250604
+4) (2.22)
+Requirement already satisfied: soupsieve>1.2 in c:\code\chrisfava\.venv\lib\site-packages (from beautifulsoup4->beangulp>=0.1->fava==0.1.dev28+g42c5822.d20250604) (2.7)
+Requirement already satisfied: typing-extensions>=4.0.0 in c:\code\chrisfava\.venv\lib\site-packages (from beautifulsoup4->beangulp>=0.1->fava==0.1.dev28+g42c5822.d20250604) (4.14.0)
+Building wheels for collected packages: fava
+  Building editable for fava (pyproject.toml) ... done
+  Created wheel for fava: filename=fava-0.1.dev28+g42c5822.d20250604-0.editable-py3-none-any.whl size=4740 sha256=40f187443d101ac483f53457442d6dbcf2ca6b1d6dea8106d3db86aa668c18c9    
+  Stored in directory: C:\Users\hotra\AppData\Local\Temp\pip-ephem-wheel-cache-aqz90hyq\wheels\4e\f1\c2\7212fb360dd195f471834a941410a715046998f120105761b8
+Successfully built fava
+Installing collected packages: fava
+  Attempting uninstall: fava
+    Found existing installation: fava 0.1.dev20+g61365bf.d20250603
+    Uninstalling fava-0.1.dev20+g61365bf.d20250603:
+      Successfully uninstalled fava-0.1.dev20+g61365bf.d20250603
+Successfully installed fava-0.1.dev28+g42c5822.d20250604
+Running PyInstaller (pyinstaller --noconfirm fava_pqc_installer.spec)... 
+203 INFO: PyInstaller: 6.14.0, contrib hooks: 2025.4
+204 INFO: Python: 3.13.3
+229 INFO: Platform: Windows-11-10.0.26100-SP0
+229 INFO: Python environment: C:\code\ChrisFava\.venv
+INFO: Attempting to use DLL from: C:\code\ChrisFava\liboqs\build\bin\Debug\oqs.dll
+INFO: Will attempt to bundle 'C:\code\ChrisFava\liboqs\build\bin\Debug\oqs.dll' as 'oqs.dll' in the bundle root directory
+315 INFO: Module search paths (PYTHONPATH):
+['c:\\code\\chrisfava\\.venv\\scripts\\pyinstaller.exe',
+ 'C:\\Python313\\python313.zip',
+ 'C:\\Python313\\DLLs',
+ 'C:\\Python313\\Lib',
+ 'C:\\Python313',
+ 'C:\\code\\ChrisFava\\.venv',
+ 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages',
+ 'C:\\code\\ChrisFava\\src',
+ 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\setuptools\\_vendor',
+ 'C:\\code\\ChrisFava\\src',
+ 'C:\\code\\ChrisFava\\src']
+635 INFO: Appending 'binaries' from .spec
+635 INFO: Appending 'datas' from .spec
+639 INFO: checking Analysis
+640 INFO: Building Analysis because Analysis-00.toc is non existent
+640 INFO: Running Analysis Analysis-00.toc
+640 INFO: Target bytecode optimization level: 0
+640 INFO: Initializing module dependency graph...
+641 INFO: Initializing module graph hook caches...
+652 INFO: Analyzing modules for base_library.zip ...
+1734 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3634 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4480 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4957 INFO: Caching module dependency graph...
+4997 INFO: Looking for Python shared library...
+5003 INFO: Using Python shared library: C:\Python313\python313.dll
+5003 INFO: Analyzing C:\code\ChrisFava\src\fava\cli.py
+5166 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+5167 INFO: SetuptoolsInfo: initializing cached setuptools info...
+8624 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+8860 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9569 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9657 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9741 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9741 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+9747 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9758 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9804 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9809 INFO: Processing pre-safe-import-module hook 'hook-jaraco.functools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9845 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10111 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10296 INFO: Processing pre-safe-import-module hook 'hook-jaraco.text.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10297 INFO: Setuptools: 'jaraco.text' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.text'!
+10308 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+10309 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'    
+10310 INFO: Processing pre-safe-import-module hook 'hook-jaraco.context.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10311 INFO: Setuptools: 'jaraco.context' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.context'!
+10510 INFO: Processing pre-safe-import-module hook 'hook-backports.tarfile.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10510 INFO: Setuptools: 'backports.tarfile' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.backports.tarfile'!
+10621 INFO: Processing standard module hook 'hook-backports.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+10928 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10928 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+11429 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+11430 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+11602 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+11604 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+11604 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+12288 INFO: Processing standard module hook 'hook-cryptography.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+13059 INFO: hook-cryptography: cryptography does not seem to be using dynamically linked OpenSSL.
+13652 INFO: Processing standard module hook 'hook-fava.py' from 'C:\\code\\ChrisFava\\hooks'
+13835 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+15878 INFO: Processing standard module hook 'hook-regex.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+16516 INFO: Processing standard module hook 'hook-jinja2.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17121 INFO: Processing standard module hook 'hook-babel.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17358 INFO: Processing standard module hook 'hook-pytz.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17463 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17681 INFO: Processing standard module hook 'hook-argon2.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17725 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19144 INFO: Processing standard module hook 'hook-dateutil.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19397 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+19542 INFO: Processing standard module hook 'hook-pyexcel.py' from 'C:\\code\\ChrisFava\\hooks'
+19976 INFO: Processing standard module hook 'hook-lml.py' from 'C:\\code\\ChrisFava\\hooks'
+20303 INFO: Processing standard module hook 'hook-pyexcel_io.py' from 'C:\\code\\ChrisFava\\hooks'
+21057 INFO: Analyzing hidden import 'fava.core.attributes'
+21064 INFO: Analyzing hidden import 'fava.core.budgets'
+21069 INFO: Analyzing hidden import 'fava.core.commodities'
+21071 INFO: Analyzing hidden import 'fava.core.number'
+21074 INFO: Analyzing hidden import 'fava.core.query_shell'
+21120 INFO: Analyzing hidden import 'fava.ext.auto_commit'
+21123 INFO: Analyzing hidden import 'fava.ext.portfolio_list'
+21127 INFO: Analyzing hidden import 'fava.plugins'
+21128 INFO: Analyzing hidden import 'fava.plugins.link_documents'
+21132 INFO: Analyzing hidden import 'fava.plugins.tag_discovered_documents'
+21134 INFO: Analyzing hidden import 'fava.pqc.documentation_generator'
+21137 INFO: Analyzing hidden import 'tzdata'
+21137 INFO: Processing module hooks (post-graph stage)...
+21453 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+24226 INFO: Performing binary vs. data reclassification (2426 entries)
+24426 INFO: Looking for ctypes DLLs
+24489 INFO: Analyzing run-time hooks ...
+24493 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+24496 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+24498 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+24499 INFO: Including run-time hook 'pyi_rth_cryptography_openssl.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+24500 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+24568 INFO: Creating base_library.zip...
+24621 INFO: Looking for dynamic libraries
+25475 INFO: Extra DLL search directories (AddDllDirectory): []
+25475 INFO: Extra DLL search directories (PATH): []
+25925 INFO: Warnings written to C:\code\ChrisFava\build\fava_pqc_installer\warn-fava_pqc_installer.txt
+26005 INFO: Graph cross-reference written to C:\code\ChrisFava\build\fava_pqc_installer\xref-fava_pqc_installer.html
+26075 INFO: checking PYZ
+26075 INFO: Building PYZ because PYZ-00.toc is non existent
+26075 INFO: Building PYZ (ZlibArchive) C:\code\ChrisFava\build\fava_pqc_installer\PYZ-00.pyz
+27257 INFO: Building PYZ (ZlibArchive) C:\code\ChrisFava\build\fava_pqc_installer\PYZ-00.pyz completed successfully.
+27282 INFO: checking PKG
+27283 INFO: Building PKG because PKG-00.toc is non existent
+27283 INFO: Building PKG (CArchive) fava_pqc_installer.pkg
+27306 INFO: Building PKG (CArchive) fava_pqc_installer.pkg completed successfully.
+27307 INFO: Bootloader C:\code\ChrisFava\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\run_d.exe
+27307 INFO: checking EXE
+27307 INFO: Building EXE because EXE-00.toc is non existent
+27307 INFO: Building EXE from EXE-00.toc
+27308 INFO: Copying bootloader EXE to C:\code\ChrisFava\build\fava_pqc_installer\fava_pqc_installer.exe
+27350 INFO: Copying icon to EXE
+27381 INFO: Copying 0 resources to EXE
+27381 INFO: Embedding manifest in EXE
+27411 INFO: Appending PKG archive to EXE
+27468 INFO: Fixing EXE headers
+27597 INFO: Building EXE from EXE-00.toc completed successfully.
+27615 INFO: checking COLLECT
+27615 INFO: Building COLLECT because COLLECT-00.toc is non existent
+27615 INFO: Building COLLECT COLLECT-00.toc
+29190 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+29227 INFO: Build complete! The results are available in: C:\code\ChrisFava\dist
+Build process finished.
