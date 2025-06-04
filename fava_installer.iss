@@ -2,7 +2,7 @@
 ; This script would be compiled by Inno Setup (iscc.exe)
 
 #define MyAppName "Fava PQC"
-#define MyAppVersion "1.2.0" ; Placeholder - should match Fava's version
+#define MyAppVersion "1.1.0" ; Updated to target version
 #define MyAppPublisher "Fava PQC Contributors"
 #define MyAppURL "https://github.com/beancount/fava" ; Adjust if there's a specific PQC fork URL
 #define MyAppExeName "fava_pqc_installer.exe" ; This is the PyInstaller output, not the final installer name
@@ -21,11 +21,12 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 ;DefaultDirName={userappdata}\Programs\{#MyAppName} ; Alternative for non-admin install
 DisableProgramGroupPage=yes
-OutputBaseFilename=fava_pqc_windows_installer_v{#MyAppVersion} ; Final installer .exe name
+OutputBaseFilename=fava_pqc_windows_installer_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-;PrivilegesRequired=none ; or lowest if installing to userappdata
+OutputDir=dist
+;PrivilegesRequired=admin ; Requires admin for {autopf} - Commented out to troubleshoot
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ;SetupIconFile=c:\code\ChrisFava\src\fava\static\favicon.ico ; Icon for the installer itself
 

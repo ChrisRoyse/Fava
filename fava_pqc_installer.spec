@@ -6,6 +6,7 @@ block_cipher = None
 
 import os
 import sys
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata, collect_data_files
 # try:
 #     import oqs
 #     oqs_package_dir = os.path.dirname(oqs.__file__)
@@ -75,15 +76,42 @@ fava_datas = [
 oqs_binaries = []
 
 
+# --- Collect Metadata and Data files ---
+all_metadata = []
+all_metadata.extend(copy_metadata('fava'))
+all_metadata.extend(copy_metadata('lml'))
+all_metadata.extend(copy_metadata('pyexcel'))
+all_metadata.extend(copy_metadata('pyexcel_io'))
+all_metadata.extend(copy_metadata('pyexcel_xls'))
+all_metadata.extend(copy_metadata('pyexcel_xlsx'))
+all_metadata.extend(copy_metadata('pyexcel_ods3'))
+all_metadata.extend(copy_metadata('pyexcel_text'))
+# Add any other packages for which metadata is essential
+
+# Fava's core data files (renamed from fava_datas for clarity with report example)
+current_fava_datas = [
+    ('src/fava/templates', 'fava/templates'),
+    ('src/fava/static', 'fava/static'),
+    ('src/fava/help', 'fava/help'),
+]
+
+# Collect other specific data files that are not metadata
+# Based on report example, though specific needs might vary.
+# Assuming these are beneficial as per the diagnostic report's thoroughness.
+pyexcel_specific_data = collect_data_files('pyexcel', include_py_files=False)
+pyexcel_io_specific_data = collect_data_files('pyexcel_io', include_py_files=False)
+
+datas_for_analysis = current_fava_datas + all_metadata + pyexcel_specific_data + pyexcel_io_specific_data
+
 # --- Analysis ---
 # pathex: Paths to search for imports. Add 'src' to find the fava package.
 a = Analysis(
     [FAVA_MAIN_SCRIPT],
     pathex=['src'], # Ensure 'fava' module can be found
     binaries=custom_binaries,
-    datas=fava_datas,
+    datas=datas_for_analysis, # MODIFIED HERE
     hiddenimports=[
-        # 'pkg_resources.py2_warn', # This caused an error, try without
+        # Fava specific (already present, kept for reference, ensure they are still needed)
         'babel.numbers',
         'jinja2',
         'werkzeug',
@@ -100,13 +128,12 @@ a = Analysis(
         'fava.core.fava_options',
         'fava.core.file',
         'fava.core.filters',
-        'fava.core.group_entries', # Corrected from fava.core.group
+        'fava.core.group_entries',
         'fava.core.ingest',
         'fava.core.inventory',
         'fava.core.misc',
         'fava.core.module_base',
         'fava.core.number',
-        # 'fava.core.prices', # Module not found in src/fava/core/
         'fava.core.query_shell',
         'fava.core.watcher',
         'fava.core.tree',
@@ -132,17 +159,12 @@ a = Analysis(
         'fava.pqc.interfaces',
         'fava.pqc.proxy_awareness',
         'oqs',
-        'tzdata', # For pytz/babel
-        # For pyexcel_io warnings
-        'pyexcel_io.readers.csvr',
-        'pyexcel_io.readers.tsv',
-        'pyexcel_io.readers.tsvz',
-        'pyexcel_io.writers.csvw',
-        'pyexcel_io.writers.csvz',
-        'pyexcel_io.writers.tsv',
-        'pyexcel_io.writers.tsvz',
+        'tzdata',
+
+        # pyexcel related hidden imports are now largely handled by hooks in the 'hooks/' directory.
+        # Retaining fava, oqs, and other general dependencies.
     ],
-    hookspath=[], # Path to custom hook files (e.g., for oqs-python if needed)
+    hookspath=['hooks/'], # Path to custom hook files for pyexcel, lml, etc.
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
@@ -162,10 +184,10 @@ exe = EXE(
     [], # binaries to be added to EXE directly (usually empty)
     exclude_binaries=True, # binaries are collected in 'collect' step
     name='fava_pqc_installer', # Output .exe name (without version for now)
-    debug=False,
+    debug=True,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True, # UPX compression can reduce size but might trigger AV false positives
+    upx=False, # UPX compression disabled for diagnosing oqs.dll issue
     console=True, # Fava is a CLI that launches a web server, so console might be useful for logs
     disable_windowed_traceback=False,
     target_arch=None, # Autodetect, or 'x86_64' for 64-bit
@@ -182,7 +204,7 @@ coll = COLLECT(
     a.zipfiles, # Usually empty
     a.datas,    # Collect all data files
     strip=False,
-    upx=True,
+    upx=False, # UPX compression disabled for diagnosing oqs.dll issue
     upx_exclude=[],
     name='fava_pqc_dist' # Name of the folder if not onefile, or temp folder for onefile
 )

@@ -14,5 +14,5 @@ a = Analysis(['minimal_script.py'],
              runtime_hooks=[],
              excludes=[])
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-exe = EXE(pyz, a.scripts,[], exclude_binaries=True, name='minimal_test_app', console=True)
+exe = EXE(pyz, a.scripts,[], exclude_binaries=True, name='minimal_test_app', console=True, debug=True)
 coll = COLLECT(exe, a.binaries, a.zipfiles, a.datas, name='minimal_test_output')
