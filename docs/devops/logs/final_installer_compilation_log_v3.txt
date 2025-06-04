@@ -1,0 +1,141 @@
+PyInstaller Compilation Log (Attempt 3):
+=========================================
+172 INFO: PyInstaller: 6.14.0, contrib hooks: 2025.4
+172 INFO: Python: 3.13.3
+193 INFO: Platform: Windows-11-10.0.26100-SP0
+193 INFO: Python environment: C:\code\ChrisFava\.venv
+INFO: Attempting to use DLL from: C:\code\ChrisFava\liboqs\build\bin\Debug\oqs.dll
+INFO: Will attempt to bundle 'C:\code\ChrisFava\liboqs\build\bin\Debug\oqs.dll' as 'oqs.dll' in the bundle root directory
+209 INFO: Module search paths (PYTHONPATH):
+['C:\\code\\ChrisFava\\.venv\\Scripts\\pyinstaller.exe',
+ 'C:\\Python313\\python313.zip',
+ 'C:\\Python313\\DLLs',
+ 'C:\\Python313\\Lib',
+ 'C:\\Python313',
+ 'C:\\code\\ChrisFava\\.venv',
+ 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages',
+ 'C:\\code\\ChrisFava\\src',
+ 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\setuptools\\_vendor',
+ 'C:\\code\\ChrisFava\\src',
+ 'C:\\code\\ChrisFava\\src']
+527 INFO: Appending 'binaries' from .spec
+527 INFO: Appending 'datas' from .spec
+529 INFO: checking Analysis
+579 INFO: Building because _input_binaries changed
+579 INFO: Running Analysis Analysis-00.toc
+579 INFO: Target bytecode optimization level: 0
+579 INFO: Initializing module dependency graph...
+580 INFO: Initializing module graph hook caches...
+591 INFO: Analyzing modules for base_library.zip ...
+1656 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3570 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4436 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4882 INFO: Caching module dependency graph...
+4914 INFO: Looking for Python shared library...
+4920 INFO: Using Python shared library: C:\Python313\python313.dll
+4920 INFO: Analyzing C:\code\ChrisFava\src\fava\cli.py
+5083 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+5084 INFO: SetuptoolsInfo: initializing cached setuptools info...
+8584 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+8842 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9577 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9668 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9758 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9758 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+9763 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9775 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9822 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9826 INFO: Processing pre-safe-import-module hook 'hook-jaraco.functools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9861 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10097 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10263 INFO: Processing pre-safe-import-module hook 'hook-jaraco.text.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10263 INFO: Setuptools: 'jaraco.text' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.text'!
+10273 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+10275 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'    
+10276 INFO: Processing pre-safe-import-module hook 'hook-jaraco.context.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10276 INFO: Setuptools: 'jaraco.context' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.context'!
+10482 INFO: Processing pre-safe-import-module hook 'hook-backports.tarfile.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10483 INFO: Setuptools: 'backports.tarfile' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.backports.tarfile'!
+10571 INFO: Processing standard module hook 'hook-backports.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+10859 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10859 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+11348 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+11349 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+11583 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+11584 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+11585 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+12272 INFO: Processing standard module hook 'hook-cryptography.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+13044 INFO: hook-cryptography: cryptography does not seem to be using dynamically linked OpenSSL.
+13811 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+15832 INFO: Processing standard module hook 'hook-regex.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+16465 INFO: Processing standard module hook 'hook-jinja2.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17070 INFO: Processing standard module hook 'hook-babel.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17301 INFO: Processing standard module hook 'hook-pytz.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17412 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17623 INFO: Processing standard module hook 'hook-argon2.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17701 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19143 INFO: Processing standard module hook 'hook-dateutil.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19399 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+19552 INFO: Processing standard module hook 'hook-pyexcel.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19619 INFO: Processing standard module hook 'hook-pyexcel_io.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+20046 INFO: Analyzing hidden import 'fava.core.attributes'
+20053 INFO: Analyzing hidden import 'fava.core.budgets'
+20058 INFO: Analyzing hidden import 'fava.core.commodities'
+20060 INFO: Analyzing hidden import 'fava.core.number'
+20064 INFO: Analyzing hidden import 'fava.core.query_shell'
+20111 INFO: Analyzing hidden import 'fava.ext.auto_commit'
+20113 INFO: Analyzing hidden import 'fava.ext.portfolio_list'
+20118 INFO: Analyzing hidden import 'fava.plugins'
+20119 INFO: Analyzing hidden import 'fava.plugins.link_documents'
+20123 INFO: Analyzing hidden import 'fava.plugins.tag_discovered_documents'
+20125 INFO: Analyzing hidden import 'fava.pqc.documentation_generator'
+20128 INFO: Analyzing hidden import 'tzdata'
+20129 INFO: Analyzing hidden import 'pyexcel_io.readers.csvr'
+20130 ERROR: Hidden import 'pyexcel_io.readers.csvr' not found
+20130 INFO: Analyzing hidden import 'pyexcel_io.readers.tsv'
+20130 ERROR: Hidden import 'pyexcel_io.readers.tsv' not found
+20130 INFO: Analyzing hidden import 'pyexcel_io.readers.tsvz'
+20131 ERROR: Hidden import 'pyexcel_io.readers.tsvz' not found
+20131 INFO: Analyzing hidden import 'pyexcel_io.writers.csvw'
+20132 ERROR: Hidden import 'pyexcel_io.writers.csvw' not found
+20132 INFO: Analyzing hidden import 'pyexcel_io.writers.csvz'
+20132 ERROR: Hidden import 'pyexcel_io.writers.csvz' not found
+20132 INFO: Analyzing hidden import 'pyexcel_io.writers.tsv'
+20132 ERROR: Hidden import 'pyexcel_io.writers.tsv' not found
+20133 INFO: Analyzing hidden import 'pyexcel_io.writers.tsvz'
+20133 ERROR: Hidden import 'pyexcel_io.writers.tsvz' not found
+20133 INFO: Processing module hooks (post-graph stage)...
+20369 WARNING: Hidden import "pyexcel_io.readers.csvr" not found!
+20382 WARNING: Hidden import "pyexcel_io.readers.tsv" not found!
+20382 WARNING: Hidden import "pyexcel_io.readers.tsvz" not found!
+20382 WARNING: Hidden import "pyexcel_io.writers.csvw" notfound!
+20383 WARNING: Hidden import "pyexcel_io.writers.csvz" not found!
+20383 WARNING: Hidden import "pyexcel_io.writers.tsv" not found!
+20383 WARNING: Hidden import "pyexcel_io.writers.tsvz" not found!
+20383 WARNING: Hidden import "pyexcel_io.readers.tsv" not found!
+20383 WARNING: Hidden import "pyexcel_io.readers.tsvz" not found!
+20395 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+23030 INFO: Performing binary vs. data reclassification (2365 entries)
+23240 INFO: Looking for ctypes DLLs
+23307 INFO: Analyzing run-time hooks ...
+23311 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+23313 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+23315 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+23317 INFO: Including run-time hook 'pyi_rth_cryptography_openssl.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+23318 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\code\\ChrisFava\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+23375 INFO: Creating base_library.zip...
+23421 INFO: Looking for dynamic libraries
+24256 INFO: Extra DLL search directories (AddDllDirectory): []
+24256 INFO: Extra DLL search directories (PATH): []
+24658 INFO: Warnings written to C:\code\ChrisFava\build\fava_pqc_installer\warn-fava_pqc_installer.txt
+24738 INFO: Graph cross-reference written to C:\code\ChrisFava\build\fava_pqc_installer\xref-fava_pqc_installer.html
+24817 INFO: checking PYZ
+24857 INFO: checking PKG
+24865 INFO: Bootloader C:\code\ChrisFava\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\run.exe
+24865 INFO: checking EXE
+24892 INFO: checking COLLECT
+24925 INFO: Building COLLECT COLLECT-00.toc
+26445 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+26481 INFO: Build complete! The results are available in: C:\code\ChrisFava\dist
+
+PyInstaller Exit Code: 0
