@@ -12,12 +12,14 @@ class FileSystemHelper:
     """Placeholder for file system operations."""
     @staticmethod
     def read_file_content(path: str) -> str:
-        """Simulates reading file content."""
-        # This is typically mocked in tests.
-        # A real implementation would use open() with error handling.
-        # The vulnerability VULN-PQC-AGL-001 focuses on parsing and validation
-        # of the content, assuming file reading itself is handled (e.g., FileNotFoundError).
-        raise NotImplementedError("FileSystemHelper.read_file_content should be mocked or implemented.")
+        """Reads file content safely."""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found: {path}")
+        except IOError as e:
+            raise IOError(f"Failed to read configuration file {path}: {e}") from e
 
 class ParserHelper:
     """Helper for parsing configuration content safely."""
@@ -28,12 +30,26 @@ class ParserHelper:
         Uses ast.literal_eval to prevent arbitrary code execution.
         """
         try:
-            parsed = ast.literal_eval(content)
-            if not isinstance(parsed, dict):
-                raise PQCInternalParsingError(
-                    "Parsed content is not a dictionary."
-                )
-            return parsed
+            # Handle CONFIG = {...} format by extracting the assignment value
+            if 'CONFIG = ' in content:
+                # Parse the file as AST and extract the CONFIG assignment
+                tree = ast.parse(content)
+                for node in tree.body:
+                    if isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and target.id == 'CONFIG':
+                                # Evaluate the assigned value safely
+                                parsed = ast.literal_eval(node.value)
+                                if not isinstance(parsed, dict):
+                                    raise PQCInternalParsingError("CONFIG is not a dictionary.")
+                                return parsed
+                raise PQCInternalParsingError("CONFIG assignment not found in file.")
+            else:
+                # Direct dictionary literal
+                parsed = ast.literal_eval(content)
+                if not isinstance(parsed, dict):
+                    raise PQCInternalParsingError("Parsed content is not a dictionary.")
+                return parsed
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as e:
             # These are exceptions ast.literal_eval can raise for malformed input
             raise PQCInternalParsingError(
