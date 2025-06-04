@@ -5,7 +5,7 @@
 #define MyAppVersion "1.1.0" ; Updated to target version
 #define MyAppPublisher "Fava PQC Contributors"
 #define MyAppURL "https://github.com/beancount/fava" ; Adjust if there's a specific PQC fork URL
-#define MyAppExeName "fava_pqc_installer.exe" ; This is the PyInstaller output, not the final installer name
+#define MyAppExeName "fava_pqc.exe" ; This is the PyInstaller output, not the final installer name
 #define MyPyInstallerOutput "fava_pqc_dist" ; The folder created by PyInstaller in dist/
 
 [Setup]

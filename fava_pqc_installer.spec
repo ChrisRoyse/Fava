@@ -6,9 +6,15 @@ block_cipher = None
 
 import os
 import sys
+import sys
+from pathlib import Path # Added
+import oqs
 from PyInstaller.utils.hooks import collect_submodules, copy_metadata, collect_data_files
+import beancount
+# Path for beancount VERSION file
+beancount_dir = os.path.dirname(beancount.__file__) # Get directory of beancount package
+BEANCOUNT_VERSION_FILE_PATH = os.path.join(beancount_dir, 'VERSION') # Path to VERSION file
 # try:
-#     import oqs
 #     oqs_package_dir = os.path.dirname(oqs.__file__)
 #     # Adjust 'liboqs.dll' if the actual filename is different on Windows
 #     liboqs_dll_path_old = os.path.join(oqs_package_dir, 'liboqs.dll')
@@ -19,24 +25,77 @@ from PyInstaller.utils.hooks import collect_submodules, copy_metadata, collect_d
 #     print("WARNING: oqs module not found. Cannot locate liboqs.dll.", file=sys.stderr)
 #     liboqs_dll_path_old = None
 
-# Manually specify the path to the built oqs.dll
-# IMPORTANT: Ensure this path uses forward slashes or os.path.join for cross-platform compatibility within the spec file.
-# The actual path on the system is c:\code\ChrisFava\liboqs\build\bin\Debug\oqs.dll
-liboqs_dll_path = os.path.abspath('liboqs/build/bin/Debug/oqs.dll')
-print(f"INFO: Attempting to use DLL from: {liboqs_dll_path}", file=sys.stderr)
-if not os.path.exists(liboqs_dll_path):
-    print(f"CRITICAL WARNING: DLL not found at manually specified path: {liboqs_dll_path}", file=sys.stderr)
-    liboqs_dll_path = None # This will trigger the critical warning below if not found
+# --- Dynamically locate oqs.dll ---
+# This section prioritizes oqs.dll from the oqs-python package,
+# then falls back to a local build if necessary.
 
-custom_binaries = []
-if liboqs_dll_path:
+actual_liboqs_dll_path = None
+custom_binaries = [] # Initialize custom_binaries here
+
+# 1. Prioritize DLL from oqs-python package
+try:
+    oqs_lib_path_from_pkg = oqs.get_lib_path()
+    if oqs_lib_path_from_pkg and os.path.exists(oqs_lib_path_from_pkg):
+        actual_liboqs_dll_path = oqs_lib_path_from_pkg
+        print(f"INFO: Using oqs.dll from oqs-python package: {actual_liboqs_dll_path}", file=sys.stderr)
+    else:
+        if oqs_lib_path_from_pkg: # Check if path was returned but file doesn't exist
+            print(f"WARNING: oqs.get_lib_path() provided path '{oqs_lib_path_from_pkg}' but file does not exist.", file=sys.stderr)
+        else: # oqs.get_lib_path() returned None or empty
+            print("WARNING: oqs.get_lib_path() did not return a path for oqs.dll.", file=sys.stderr)
+except ImportError:
+    print("WARNING: oqs-python package not found. Cannot get oqs.dll path from it.", file=sys.stderr)
+except AttributeError: # If oqs module exists but no get_lib_path()
+    print("WARNING: oqs.get_lib_path() not available in installed oqs-python. Potentially old version or misconfiguration.", file=sys.stderr)
+except Exception as e: # Catch any other unexpected errors during oqs.get_lib_path()
+    print(f"WARNING: An unexpected error occurred while trying oqs.get_lib_path(): {e}", file=sys.stderr)
+
+# 2. Fallback to local build if not found in package
+# 2. Fallback to local build or standard oqs-python install location
+if not actual_liboqs_dll_path:
+    print("INFO: oqs.dll not found via package. Falling back to check other locations.", file=sys.stderr)
+    
+    # Print SPECPATH for debugging
+    print(f"DEBUG: SPECPATH is: {SPECPATH}", file=sys.stderr)
+    spec_dir = os.path.dirname(SPECPATH)
+    print(f"DEBUG: os.path.dirname(SPECPATH) is: {spec_dir}", file=sys.stderr)
+
+    # Path 1: Relative to spec file (project's liboqs build)
+    # Assumes 'liboqs' is a subdirectory of the project root (where SPECPATH is located)
+    liboqs_project_build_path = os.path.abspath(os.path.join(spec_dir, 'liboqs'))
+    print(f"DEBUG: Calculated project liboqs path for local build: {liboqs_project_build_path}", file=sys.stderr)
+    
+    liboqs_dll_path_project_release = os.path.join(liboqs_project_build_path, 'build', 'bin', 'Release', 'oqs.dll')
+    liboqs_dll_path_project_debug = os.path.join(liboqs_project_build_path, 'build', 'bin', 'Debug', 'oqs.dll')
+
+    # Path 2: Standard oqs-python auto-install location ($HOME/_oqs/bin/oqs.dll)
+    # HOME directory for Windows is typically C:/Users/<username>
+    home_dir = Path.home()
+    oqs_auto_install_dll_path = home_dir / "_oqs" / "bin" / "oqs.dll"
+    print(f"DEBUG: Checking oqs auto-install path: {oqs_auto_install_dll_path}", file=sys.stderr)
+
+    if os.path.exists(liboqs_dll_path_project_release):
+        actual_liboqs_dll_path = liboqs_dll_path_project_release
+        print(f"INFO: Using oqs.dll from project local Release build: {actual_liboqs_dll_path}", file=sys.stderr)
+    elif os.path.exists(liboqs_dll_path_project_debug):
+        actual_liboqs_dll_path = liboqs_dll_path_project_debug
+        print(f"INFO: Using oqs.dll from project local Debug build: {actual_liboqs_dll_path}", file=sys.stderr)
+    elif os.path.exists(oqs_auto_install_dll_path):
+        actual_liboqs_dll_path = str(oqs_auto_install_dll_path) # PyInstaller binaries list expects strings
+        print(f"INFO: Using oqs.dll from user's auto-install path: {actual_liboqs_dll_path}", file=sys.stderr)
+    else:
+        print(f"WARNING: oqs.dll not found in project build paths (Release: '{liboqs_dll_path_project_release}', Debug: '{liboqs_dll_path_project_debug}') nor in auto-install path ('{oqs_auto_install_dll_path}').", file=sys.stderr)
+# Add to binaries if a path was found
+if actual_liboqs_dll_path:
     # The tuple is (source_path, destination_in_bundle)
-    # We want the built 'oqs.dll' (pointed to by liboqs_dll_path)
-    # to be named 'liboqs.dll' in the bundle's root.
-    custom_binaries.append((liboqs_dll_path, '.'))
-    print(f"INFO: Will attempt to bundle '{liboqs_dll_path}' as 'oqs.dll' in the bundle root directory", file=sys.stderr)
+    # We want the located 'oqs.dll' to be named 'oqs.dll' (or its original name if that's preferred, though '.' implies it keeps its name)
+    # in the bundle's root directory.
+    custom_binaries.append((actual_liboqs_dll_path, '.'))
+    print(f"INFO: Will attempt to bundle '{actual_liboqs_dll_path}' as 'oqs.dll' in the bundle root directory.", file=sys.stderr)
 else:
-    print("CRITICAL WARNING: liboqs_dll_path is None (likely DLL not found at specified path). It will NOT be bundled.", file=sys.stderr)
+    print("ERROR: CRITICAL - oqs.dll could not be found from any source (package or local build). PQC functionality will likely fail.", file=sys.stderr)
+
+# Note: custom_binaries is used in the Analysis block: binaries=custom_binaries
 
 # --- Fava Application Specifics ---
 # Identify the main script for Fava. This is often cli.py or __main__.py.
@@ -94,6 +153,7 @@ current_fava_datas = [
     ('src/fava/templates', 'fava/templates'),
     ('src/fava/static', 'fava/static'),
     ('src/fava/help', 'fava/help'),
+('src/fava/translations', 'fava/translations'),
 ]
 
 # Collect other specific data files that are not metadata
@@ -102,7 +162,7 @@ current_fava_datas = [
 pyexcel_specific_data = collect_data_files('pyexcel', include_py_files=False)
 pyexcel_io_specific_data = collect_data_files('pyexcel_io', include_py_files=False)
 
-datas_for_analysis = current_fava_datas + all_metadata + pyexcel_specific_data + pyexcel_io_specific_data + [('.venv/Lib/site-packages/beancount/VERSION', 'beancount')]
+datas_for_analysis = current_fava_datas + all_metadata + pyexcel_specific_data + pyexcel_io_specific_data + collect_data_files('oqs') + [(BEANCOUNT_VERSION_FILE_PATH, 'beancount')]
 
 # --- Analysis ---
 # pathex: Paths to search for imports. Add 'src' to find the fava package.
@@ -184,7 +244,7 @@ exe = EXE(
     a.scripts,
     [], # binaries to be added to EXE directly (usually empty)
     exclude_binaries=True, # binaries are collected in 'collect' step
-    name='fava_pqc_installer', # Output .exe name (without version for now)
+    name='fava_pqc', # Output .exe name (without version for now)
     debug=True,
     bootloader_ignore_signals=False,
     strip=False,
