@@ -1,0 +1,44 @@
+{
+  "test_suite": "PQC_Acceptance_Tests",
+  "execution_timestamp": "2025-06-06T13:23:37Z",
+  "overall_duration_seconds": 4.388289451599121,
+  "test_modules": {
+    "test_pqc_data_at_rest.py": {
+      "success": false,
+      "duration": 1.2066993713378906,
+      "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0 -- C:\\code\\ChrisFava\\.venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\code\\ChrisFava\nconfigfile: pyproject.toml\nplugins: anyio-4.9.0, asyncio-1.0.0, cov-6.1.1, mock-3.14.1\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.00s ============================\n",
+      "stderr": "ERROR: file or directory not found: tests/acceptance/test_pqc_data_at_rest.py\n\n",
+      "return_code": 4
+    },
+    "test_pqc_data_in_transit.py": {
+      "success": false,
+      "duration": 1.0879812240600586,
+      "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0 -- C:\\code\\ChrisFava\\.venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\code\\ChrisFava\nconfigfile: pyproject.toml\nplugins: anyio-4.9.0, asyncio-1.0.0, cov-6.1.1, mock-3.14.1\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.00s ============================\n",
+      "stderr": "ERROR: file or directory not found: tests/acceptance/test_pqc_data_in_transit.py\n\n",
+      "return_code": 4
+    },
+    "test_pqc_hashing.py": {
+      "success": false,
+      "duration": 1.039945363998413,
+      "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0 -- C:\\code\\ChrisFava\\.venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\code\\ChrisFava\nconfigfile: pyproject.toml\nplugins: anyio-4.9.0, asyncio-1.0.0, cov-6.1.1, mock-3.14.1\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.00s ============================\n",
+      "stderr": "ERROR: file or directory not found: tests/acceptance/test_pqc_hashing.py\n\n",
+      "return_code": 4
+    },
+    "test_pqc_wasm_integrity.py": {
+      "success": false,
+      "duration": 1.0515000820159912,
+      "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-8.4.0, pluggy-1.6.0 -- C:\\code\\ChrisFava\\.venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\code\\ChrisFava\nconfigfile: pyproject.toml\nplugins: anyio-4.9.0, asyncio-1.0.0, cov-6.1.1, mock-3.14.1\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.00s ============================\n",
+      "stderr": "ERROR: file or directory not found: tests/acceptance/test_pqc_wasm_integrity.py\n\n",
+      "return_code": 4
+    }
+  },
+  "aver_summary": {
+    "total_tests": 0,
+    "passed_tests": 0,
+    "failed_tests": 0,
+    "pass_rate": 0,
+    "performance_summary": {},
+    "test_details": []
+  },
+  "overall_status": "FAIL"
+}
