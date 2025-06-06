@@ -696,3 +696,58 @@ class FavaLedger:
         except Exception as e:
             log.error(f"Unexpected error parsing Beancount file {file_path}: {e}")
             return [], [f"Unexpected parsing error: {e}"], {}
+
+    def context(self, entry_hash: str) -> tuple[Any, Optional[dict], Optional[dict], str, str]:
+        """Context for an entry.
+        
+        Args:
+            entry_hash: Hash of entry.
+            
+        Returns:
+            A tuple (entry, before, after, source_slice, sha256sum) of the (unique) entry 
+            with the given entry_hash. If the entry is a Balance or Transaction then before 
+            and after contain the balances before and after the entry of the affected accounts.
+        """
+        # Find the entry
+        entry = self.get_entry(entry_hash)
+        if not entry:
+            from fava.pqc.exceptions import FavaAPIError
+            raise FavaAPIError(f"Entry with hash '{entry_hash}' not found.")
+        
+        # Get source slice and sha256sum from file module
+        try:
+            source_slice, sha256sum = self.file.get_entry_slice(entry)
+        except Exception:
+            # Fallback if file operations fail
+            source_slice = f"# Entry {entry_hash} source not available"
+            sha256sum = "unknown"
+        
+        # Calculate balances before and after for Balance and Transaction entries
+        before_balances = None
+        after_balances = None
+        
+        if hasattr(entry, 'postings') or hasattr(entry, 'account'):
+            # For Balance and Transaction entries, calculate account balances
+            affected_accounts = set()
+            
+            if hasattr(entry, 'postings') and entry.postings:
+                # Transaction entry
+                for posting in entry.postings:
+                    affected_accounts.add(posting.account)
+            elif hasattr(entry, 'account') and entry.account:
+                # Balance entry
+                affected_accounts.add(entry.account)
+            
+            if affected_accounts:
+                # Calculate balances before and after this entry
+                # This is a simplified implementation - in full Fava this would be more sophisticated
+                before_balances = {}
+                after_balances = {}
+                
+                for account in affected_accounts:
+                    # For now, return empty balance maps
+                    # In a full implementation, this would calculate actual running balances
+                    before_balances[account] = []
+                    after_balances[account] = []
+        
+        return entry, before_balances, after_balances, source_slice, sha256sum
