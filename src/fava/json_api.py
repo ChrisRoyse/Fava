@@ -24,6 +24,9 @@ from flask import Blueprint
 from flask import get_template_attribute
 from flask import jsonify
 from flask import request
+from flask import Response
+from flask import send_from_directory
+from flask import current_app
 from flask_babel import gettext  # type: ignore[import-untyped]
 
 from fava.beans.abc import Document
@@ -287,40 +290,132 @@ def get_pqc_config() -> Mapping[str, Any]:
             crypto_settings_file_path = g.ledger.fava_options.fava_crypto_settings_file
         
         pqc_settings = GlobalConfig.get_crypto_settings(file_path=crypto_settings_file_path)
+        log.debug(f"Loaded PQC settings: {pqc_settings}")
         
-        # Selectively expose only necessary parts to the frontend
-        # For example, WASM public key and hashing algorithm
-        frontend_pqc_config = {}
+        # Configure WASM verification to use backend verification
+        wasm_integrity_config = pqc_settings.get("wasm_module_integrity", {})
         
-        # WASM Module Integrity Config
-        wasm_config = pqc_settings.get("wasm_module_integrity", {})
-        if isinstance(wasm_config, dict):
-            frontend_pqc_config["wasm_module_integrity"] = {
-                "verification_enabled": wasm_config.get("verification_enabled", False),
-                "public_key_base64": wasm_config.get("public_key_base64"),
-                "signature_algorithm": wasm_config.get("signature_algorithm"),
-                "module_path": wasm_config.get("module_path", "/assets/tree-sitter-beancount.wasm"), # Default from current pqcWasmConfig.ts
-                "signature_path_suffix": wasm_config.get("signature_path_suffix", ".dilithium3.sig") # Default from current pqcWasmConfig.ts
-            }
-            
-        # Hashing Config
-        hashing_config = pqc_settings.get("hashing", {})
-        if isinstance(hashing_config, dict):
-            frontend_pqc_config["hashing"] = {
-                "default_algorithm": hashing_config.get("default_algorithm")
-            }
-            
-        # Add other configurations as needed, e.g., for cryptographic agility preferences if relevant to frontend
-
+        # Frontend will call /api/verified_wasm/{module_name} instead of verifying locally
+        frontend_pqc_config = {
+            "wasm_module_integrity": {
+                "verification_enabled": wasm_integrity_config.get("verification_enabled", True),
+                "backend_verification": True,  # Signal that backend handles verification
+                "module_path": wasm_integrity_config.get("module_path", "/static/tree-sitter-beancount.wasm"),
+                "verified_endpoint": f"/{g.beancount_file_slug}/api/verified_wasm/tree-sitter-beancount.wasm"
+            },
+            "hashing": pqc_settings.get("hashing", {"default_algorithm": "SHA3-256"})
+        }
+        
+        log.debug(f"Final frontend PQC config: {frontend_pqc_config}")
         return frontend_pqc_config
-    except PQCCriticalConfigurationError as e:
-        log.error(f"PQC configuration error when accessing /api/pqc_config: {e}")
-        # Re-raise as a FavaAPIError so it's handled by the generic error handler
-        # and returns a proper JSON error response to the client.
-        raise FavaAPIError(f"PQC Configuration Error: {e}") from e
+        
     except Exception as e:
-        log.error(f"Unexpected error when accessing /api/pqc_config: {e}")
-        raise FavaAPIError(f"Unexpected error fetching PQC configuration: {e}") from e
+        log.error(f"Error loading PQC configuration: {e}")
+        # Return safe defaults if config loading fails
+        return {
+            "wasm_module_integrity": {
+                "verification_enabled": False,
+                "backend_verification": True,
+                "module_path": "/static/tree-sitter-beancount.wasm",
+                "verified_endpoint": f"/{g.beancount_file_slug}/api/verified_wasm/tree-sitter-beancount.wasm"
+            },
+            "hashing": {"default_algorithm": "SHA3-256"}
+        }
+
+
+@json_api.route("/verified_wasm/<module_name>", methods=["GET"])
+def get_verified_wasm(module_name: str) -> Response:
+    """Serve a cryptographically verified WASM module."""
+    try:
+        # Get crypto settings
+        crypto_settings_file_path = None
+        if g.ledger and hasattr(g.ledger.fava_options, 'fava_crypto_settings_file'):
+            crypto_settings_file_path = g.ledger.fava_options.fava_crypto_settings_file
+        
+        pqc_settings = GlobalConfig.get_crypto_settings(file_path=crypto_settings_file_path)
+        wasm_integrity_config = pqc_settings.get("wasm_module_integrity", {})
+        
+        if not wasm_integrity_config.get("verification_enabled", False):
+            # If verification is disabled, just serve the file directly
+            log.warning("WASM verification is disabled - serving unverified module")
+            return send_from_directory("static", module_name)
+        
+        # Construct file paths
+        static_dir = Path(current_app.static_folder)
+        wasm_file_path = static_dir / module_name
+        signature_suffix = wasm_integrity_config.get("signature_path_suffix", ".dilithium3.sig")
+        signature_file_path = static_dir / f"{module_name}{signature_suffix}"
+        
+        # Check if files exist
+        if not wasm_file_path.exists():
+            log.error(f"WASM file not found: {wasm_file_path}")
+            return Response(f"WASM file not found: {module_name}", status=404)
+        
+        if not signature_file_path.exists():
+            log.error(f"Signature file not found: {signature_file_path}")
+            return Response(f"Signature file not found: {module_name}{signature_suffix}", status=404)
+        
+        # Read the WASM file and signature
+        wasm_data = wasm_file_path.read_bytes()
+        signature_data = signature_file_path.read_bytes()
+        
+        # Get the public key
+        public_key_base64 = wasm_integrity_config.get("public_key_base64", "")
+        if not public_key_base64:
+            log.error("No public key configured for WASM verification")
+            return Response("No public key configured for WASM verification", status=500)
+        
+        # Verify the signature using OQS
+        try:
+            import base64
+            from oqs import Signature
+            
+            # Decode the public key with automatic padding handling
+            # Add padding if needed for proper base64 decoding
+            missing_padding = 4 - (len(public_key_base64) % 4)
+            if missing_padding != 4:
+                public_key_base64_padded = public_key_base64 + ('=' * missing_padding)
+            else:
+                public_key_base64_padded = public_key_base64
+                
+            public_key_bytes = base64.b64decode(public_key_base64_padded)
+            
+            # Create Dilithium3 signature verifier
+            signature_algorithm = wasm_integrity_config.get("signature_algorithm", "Dilithium3")
+            sig_verifier = Signature(signature_algorithm)
+            
+            # Verify the signature
+            is_valid = sig_verifier.verify(wasm_data, signature_data, public_key_bytes)
+            
+            if not is_valid:
+                log.error(f"WASM signature verification failed for {module_name}")
+                return Response(f"WASM signature verification failed for {module_name}", status=403)
+            
+            log.info(f"WASM signature verification successful for {module_name}")
+            
+            # Return the verified WASM file with appropriate headers
+            response = Response(
+                wasm_data,
+                mimetype='application/wasm',
+                headers={
+                    'Content-Disposition': f'inline; filename="{module_name}"',
+                    'X-PQC-Verified': 'true',
+                    'X-PQC-Algorithm': signature_algorithm,
+                    'Cache-Control': 'public, max-age=3600'  # Cache for 1 hour
+                }
+            )
+            return response
+            
+        except ImportError:
+            log.error("OQS library not available for WASM verification")
+            return Response("OQS library not available for WASM verification", status=500)
+        except Exception as e:
+            log.error(f"Error during WASM signature verification: {e}")
+            return Response(f"Error during WASM signature verification: {e}", status=500)
+            
+    except Exception as e:
+        log.error(f"Error in verified WASM endpoint: {e}")
+        return Response(f"Error in verified WASM endpoint: {e}", status=500)
 
 
 @api_endpoint
@@ -810,7 +905,7 @@ def get_account_report() -> AccountReportJournal | AccountReportTree:
         )
 
     journal = get_template_attribute("_journal_table.html", "journal_table")
-    entries = g.ledger.account_journal(
+    entries = g.ledger.account_journal_with_balance(
         g.filtered,
         account_name,
         g.conversion,

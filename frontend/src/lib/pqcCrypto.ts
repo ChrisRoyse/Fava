@@ -21,9 +21,13 @@ async function fetchHashingConfig(): Promise<PqcHashingConfig> {
 
   hashingConfigFetchPromise = (async () => {
     try {
-      const bfileSlugFromGlobal = (window as { FAVA_BEANCUNT_FILE_SLUG?: string }).FAVA_BEANCUNT_FILE_SLUG;
-      const bfileSlug = bfileSlugFromGlobal ?? "default_ledger";
-      const response = await fetch(`/${bfileSlug}/api/pqc_config`);
+      // Use the current URL to construct the API endpoint
+      // Extract the ledger slug from the URL and build API endpoint
+      const currentPath = window.location.pathname;
+      const pathParts = currentPath.split('/').filter(part => part);
+      // First part should be the ledger slug (e.g., 'example')
+      const ledgerSlug = pathParts[0] ?? 'default_ledger';
+      const response = await fetch(`/${ledgerSlug}/api/pqc_config`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to fetch PQC hashing config: ${String(response.status)} ${errorText}`);

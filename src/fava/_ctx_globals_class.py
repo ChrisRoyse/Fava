@@ -12,7 +12,7 @@ from fava.util.date import Interval
 
 if TYPE_CHECKING:  # pragma: no cover
     from fava.core import FavaLedger
-    from fava.core import FilteredLedger
+    from fava.core.filter_results import FilterEntries
     from fava.core.conversion import Conversion
     from fava.ext import FavaExtensionBase
 
@@ -43,11 +43,11 @@ class Context:
         return Interval.get(request.args.get("interval", ""))
 
     @cached_property
-    def filtered(self) -> FilteredLedger:
+    def filtered(self) -> FilterEntries:
         """The filtered ledger."""
         args = request.args
         return self.ledger.get_filtered(
             account=args.get("account", ""),
-            filter=args.get("filter", ""),
+            filter_str=args.get("filter", ""),
             time=args.get("time", ""),
         )

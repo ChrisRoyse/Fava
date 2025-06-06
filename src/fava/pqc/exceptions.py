@@ -54,3 +54,13 @@ class BundleParsingError(PQCError):
 class CryptoError(PQCError):
     """Generic error from an underlying crypto library operation."""
     pass
+
+
+class FavaAPIError(Exception):
+    """Base class for Fava API errors."""
+    pass
+
+
+class FileLoadError(Exception):
+    """Error loading a file."""
+    pass

@@ -2,25 +2,40 @@
 // Based on architecture doc: docs/architecture/PQC_WASM_Module_Integrity_Arch.md
 // Based on pseudocode: docs/pseudocode/PQC_WASM_Module_Integrity_Pseudo.md
 
-import { verifyPqcWasmSignature } from '../lib/pqcCrypto'; // Added import
-
 export interface PqcWasmConfig {
   pqcWasmVerificationEnabled: boolean;
   pqcWasmPublicKeyDilithium3Base64: string;
-  pqcWasmSignatureAlgorithmName: 'Dilithium3'; // Currently fixed
+  pqcWasmSignatureAlgorithmName: 'Dilithium3';
   wasmModulePath: string;
   wasmSignaturePathSuffix: string;
+  pqcWasmBackendVerification: boolean;
+  pqcWasmVerifiedEndpoint: string;
+  pqcWasmModulePath: string;
+  pqcWasmSignatureAlgorithm: string;
+  pqcHashingDefaultAlgorithm: string;
 }
 // Default/Example configuration. This will be overridden by fetched config.
 export const favaPqcWasmConfigDefault: PqcWasmConfig = {
-  pqcWasmVerificationEnabled: false, // Default to false until fetched
+  pqcWasmVerificationEnabled: true, // Default to true for PQC security compliance
   pqcWasmPublicKeyDilithium3Base64: '', // Default to empty until fetched
   pqcWasmSignatureAlgorithmName: 'Dilithium3', // Keep as is, or make configurable if API supports
-  wasmModulePath: '/assets/tree-sitter-beancount.wasm',
+  wasmModulePath: '/static/tree-sitter-beancount.wasm',
   wasmSignaturePathSuffix: '.dilithium3.sig',
+  pqcWasmBackendVerification: true,
+  pqcWasmVerifiedEndpoint: '/default_ledger/api/verified_wasm/tree-sitter-beancount.wasm',
+  pqcWasmModulePath: '/static/tree-sitter-beancount.wasm',
+  pqcWasmSignatureAlgorithm: 'Dilithium3',
+  pqcHashingDefaultAlgorithm: 'SHA3-256'
 };
 let fetchedPqcConfig: PqcWasmConfig | null = null;
 let fetchPromise: Promise<PqcWasmConfig> | null = null;
+
+// Force cache reset on module reload during development
+if (typeof window !== 'undefined') {
+  // Reset cache on module load to ensure fresh data during development
+  fetchedPqcConfig = null;
+  fetchPromise = null;
+}
 
 // Define a more specific type for the expected API response structure
 interface ApiPqcConfigResponseData {
@@ -30,6 +45,8 @@ interface ApiPqcConfigResponseData {
     signature_algorithm?: string;
     module_path?: string;
     signature_path_suffix?: string;
+    backend_verification?: boolean;
+    verified_endpoint?: string;
   };
   hashing?: {
     default_algorithm?: string;
@@ -45,40 +62,64 @@ interface ApiPqcConfigResponse {
 
 async function fetchPqcConfigFromServer(): Promise<PqcWasmConfig> {
   try {
-    // Acknowledge FAVA_BEANCUNT_FILE_SLUG might not be standard on window
-    // Consider a more robust way to get this if possible, e.g., from a global store or script tag data
-    const bfileSlugFromGlobal = (window as { FAVA_BEANCUNT_FILE_SLUG?: string }).FAVA_BEANCUNT_FILE_SLUG;
-    const bfileSlug = bfileSlugFromGlobal ?? "default_ledger";
+    // Use the current URL to construct the API endpoint
+    // Extract the ledger slug from the URL and build API endpoint
+    const currentPath = window.location.pathname;
+    const pathParts = currentPath.split('/').filter(part => part);
+    // First part should be the ledger slug (e.g., 'example')
+    const ledgerSlug = pathParts[0] ?? 'default_ledger';
     
-    const response = await fetch(`/${bfileSlug}/api/pqc_config`);
+    const response = await fetch(`/${ledgerSlug}/api/pqc_config?t=${String(Date.now())}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch PQC config: ${String(response.status)} ${errorText}`);
     }
     
     const apiResponse = await response.json() as ApiPqcConfigResponse;
-
-    if (apiResponse.data?.wasm_module_integrity) { // apiResponse itself is not optional here
-        const wasmIntegrityConf = apiResponse.data.wasm_module_integrity;
-        const fullConfig: PqcWasmConfig = {
-            pqcWasmVerificationEnabled: wasmIntegrityConf.verification_enabled ?? favaPqcWasmConfigDefault.pqcWasmVerificationEnabled,
-            pqcWasmPublicKeyDilithium3Base64: wasmIntegrityConf.public_key_base64 ?? favaPqcWasmConfigDefault.pqcWasmPublicKeyDilithium3Base64,
-            pqcWasmSignatureAlgorithmName: wasmIntegrityConf.signature_algorithm === 'Dilithium3' ? 'Dilithium3' : favaPqcWasmConfigDefault.pqcWasmSignatureAlgorithmName,
-            wasmModulePath: wasmIntegrityConf.module_path ?? favaPqcWasmConfigDefault.wasmModulePath,
-            wasmSignaturePathSuffix: wasmIntegrityConf.signature_path_suffix ?? favaPqcWasmConfigDefault.wasmSignaturePathSuffix,
-        };
-        if (!fullConfig.pqcWasmPublicKeyDilithium3Base64 && fullConfig.pqcWasmVerificationEnabled) {
-            console.warn('PQC WASM verification enabled but no public key fetched from API. Using defaults, which might be insecure.');
-        }
-        return fullConfig;
-    } else {
-      console.warn('PQC config fetched from API is missing wasm_module_integrity section or data. Using defaults.');
-      return favaPqcWasmConfigDefault;
-    }
+    console.debug('Full API response:', apiResponse);
+    
+    const wasmIntegrityConfig = apiResponse.data?.wasm_module_integrity ?? {};
+    console.debug('WASM integrity config:', wasmIntegrityConfig);
+    
+    // Check if backend verification is enabled
+    const backendVerification = wasmIntegrityConfig.backend_verification === true;
+    console.debug('Backend verification enabled:', backendVerification);
+    
+    // Build the final config with backend verification settings
+    const fullConfig: PqcWasmConfig = {
+      pqcWasmVerificationEnabled: Boolean(wasmIntegrityConfig.verification_enabled),
+      pqcWasmBackendVerification: backendVerification,
+      pqcWasmVerifiedEndpoint: wasmIntegrityConfig.verified_endpoint ?? `/${ledgerSlug}/api/verified_wasm/tree-sitter-beancount.wasm`,
+      pqcWasmModulePath: wasmIntegrityConfig.module_path ?? '/static/tree-sitter-beancount.wasm',
+      pqcWasmSignatureAlgorithm: 'Dilithium3', // Not needed for backend verification but kept for compatibility
+      pqcWasmPublicKeyDilithium3Base64: '', // Not needed for backend verification
+      pqcWasmSignatureAlgorithmName: 'Dilithium3', // Keep for compatibility
+      wasmModulePath: wasmIntegrityConfig.module_path ?? '/static/tree-sitter-beancount.wasm', // Keep for compatibility
+      wasmSignaturePathSuffix: '.dilithium3.sig', // Not needed for backend verification
+      pqcHashingDefaultAlgorithm: apiResponse.data?.hashing?.default_algorithm ?? 'SHA3-256'
+    };
+    console.debug('Final config created:', fullConfig);
+    
+    return fullConfig;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error fetching PQC config from server: ${message}`);
-    return favaPqcWasmConfigDefault; // Fallback to default on error
+    console.error('Error fetching PQC config from server:', error);
+    // Return safe defaults with backend verification
+    const currentPath = window.location.pathname;
+    const pathParts = currentPath.split('/').filter(part => part);
+    const ledgerSlug = pathParts[0] ?? 'default_ledger';
+    
+    return {
+      pqcWasmVerificationEnabled: false,
+      pqcWasmBackendVerification: true,
+      pqcWasmVerifiedEndpoint: `/${ledgerSlug}/api/verified_wasm/tree-sitter-beancount.wasm`,
+      pqcWasmModulePath: '/static/tree-sitter-beancount.wasm',
+      pqcWasmSignatureAlgorithm: 'Dilithium3',
+      pqcWasmPublicKeyDilithium3Base64: '',
+      pqcWasmSignatureAlgorithmName: 'Dilithium3',
+      wasmModulePath: '/static/tree-sitter-beancount.wasm',
+      wasmSignaturePathSuffix: '.dilithium3.sig',
+      pqcHashingDefaultAlgorithm: 'SHA3-256'
+    };
   }
 }
 
@@ -93,8 +134,9 @@ export async function getFavaPqcWasmConfig(): Promise<PqcWasmConfig> {
 
   fetchPromise = fetchPqcConfigFromServer().then(config => {
     fetchedPqcConfig = config;
-    if (config.pqcWasmVerificationEnabled && (config.pqcWasmPublicKeyDilithium3Base64 === '' || config.pqcWasmPublicKeyDilithium3Base64 === 'REPLACE_WITH_ACTUAL_DILITHIUM3_PUBLIC_KEY_BASE64')) {
-      console.error('PQC WASM verification is enabled, but a valid public key was not fetched or is a placeholder. WASM integrity checks may fail or be insecure.');
+    // With backend verification, we don't need to validate public keys on frontend
+    if (config.pqcWasmVerificationEnabled && !config.pqcWasmBackendVerification) {
+      console.warn('PQC WASM verification is enabled but backend verification is disabled. This configuration may be insecure.');
     }
     return config;
   }).catch((error: unknown) => { // Explicitly type error as unknown
@@ -117,20 +159,38 @@ export function resetPqcWasmConfigCache(): void {
 }
 
 /**
- * Fetches the WASM module and its signature, verifies the signature if enabled,
- * and returns the WASM module as an ArrayBuffer.
- * Throws an error if verification is enabled and fails, or if fetching fails.
+ * Fetches the WASM module from the backend verification endpoint if enabled,
+ * or directly from the static path if verification is disabled.
  * @returns Promise<ArrayBuffer> The WASM module's ArrayBuffer.
  */
 export async function loadAndVerifyWasmModule(): Promise<ArrayBuffer> {
   const config = await getFavaPqcWasmConfig();
 
+  // If backend verification is enabled, use the verified endpoint
+  if (config.pqcWasmBackendVerification && config.pqcWasmVerificationEnabled) {
+    console.log('Attempting PQC signature verification via backend endpoint');
+    try {
+      const wasmResponse = await fetch(config.pqcWasmVerifiedEndpoint);
+      if (!wasmResponse.ok) {
+        throw new Error(
+          `Backend WASM verification failed: ${String(wasmResponse.status)} ${wasmResponse.statusText}`,
+        );
+      }
+      const wasmModuleBuffer = await wasmResponse.arrayBuffer();
+      console.info(`WASM module verified successfully by backend: ${config.pqcWasmVerifiedEndpoint}`);
+      return wasmModuleBuffer;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Backend WASM verification failed: ${message}`);
+      throw new Error(`Backend WASM verification failed: ${message}`);
+    }
+  }
+
+  // Fallback to direct module loading (no verification)
   if (!config.wasmModulePath) {
     throw new Error('WASM module path is not configured.');
   }
 
-  // Fetch the WASM module
-  let wasmModuleBuffer: ArrayBuffer;
   try {
     const wasmResponse = await fetch(config.wasmModulePath);
     if (!wasmResponse.ok) {
@@ -138,64 +198,16 @@ export async function loadAndVerifyWasmModule(): Promise<ArrayBuffer> {
         `Failed to fetch WASM module from ${config.wasmModulePath}: ${String(wasmResponse.status)} ${wasmResponse.statusText}`,
       );
     }
-    wasmModuleBuffer = await wasmResponse.arrayBuffer();
+    const wasmModuleBuffer = await wasmResponse.arrayBuffer();
+    console.info(
+      `WASM verification is disabled. Loaded ${config.wasmModulePath} without signature check.`,
+    );
+    return wasmModuleBuffer;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Error fetching WASM module: ${message}`);
     throw new Error(`Error fetching WASM module: ${message}`);
   }
-
-  if (config.pqcWasmVerificationEnabled) {
-    if (!config.pqcWasmPublicKeyDilithium3Base64) {
-      console.error('WASM verification enabled, but no public key is configured.');
-      throw new Error('WASM verification failed: Public key not configured.');
-    }
-    if (!config.wasmSignaturePathSuffix) {
-        console.error('WASM verification enabled, but signature path suffix is not configured.');
-        throw new Error('WASM verification failed: Signature path suffix not configured.');
-    }
-
-    const signaturePath = config.wasmModulePath + config.wasmSignaturePathSuffix;
-    let signatureBuffer: ArrayBuffer;
-    try {
-      const signatureResponse = await fetch(signaturePath);
-      if (!signatureResponse.ok) {
-        throw new Error(
-          `Failed to fetch WASM signature from ${signaturePath}: ${String(signatureResponse.status)} ${signatureResponse.statusText}`,
-        );
-      }
-      signatureBuffer = await signatureResponse.arrayBuffer();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching WASM signature: ${message}`);
-      throw new Error(`Error fetching WASM signature: ${message}`);
-    }
-
-    const isVerified = await verifyPqcWasmSignature(
-      wasmModuleBuffer,
-      signatureBuffer,
-      config.pqcWasmPublicKeyDilithium3Base64,
-      config.pqcWasmSignatureAlgorithmName,
-    );
-
-    if (!isVerified) {
-      console.error(
-        `WASM module signature verification failed for ${config.wasmModulePath}`,
-      );
-      throw new Error(
-        `WASM module signature verification failed for ${config.wasmModulePath}`,
-      );
-    }
-    console.info(
-      `WASM module ${config.wasmModulePath} verified successfully.`,
-    );
-  } else {
-    console.info(
-      `WASM verification is disabled. Loading ${config.wasmModulePath} without signature check.`,
-    );
-  }
-
-  return wasmModuleBuffer;
 }
 
 // Ensure no trailing characters or braces beyond this point

@@ -142,7 +142,21 @@ class FileModule(FavaModule):
             NonSourceFileError: If the file is not one of the source files.
             InvalidUnicodeError: If the file contains invalid unicode.
         """
-        if str(path) not in self.ledger.options["include"]:
+        # Check if the file is in the include list, or is the main beancount file,
+        # or has entries in the loaded data
+        path_str = str(path)
+        is_included = path_str in self.ledger.options["include"]
+        is_main_file = path_str == self.ledger.beancount_file_path
+        
+        # Check if this file has any entries (source files that were loaded)
+        is_source_file = False
+        if not is_included and not is_main_file:
+            for entry in self.ledger.all_entries:
+                if hasattr(entry, 'meta') and entry.meta.get('filename') == path_str:
+                    is_source_file = True
+                    break
+        
+        if not (is_included or is_main_file or is_source_file):
             raise NonSourceFileError(path)
 
         try:
