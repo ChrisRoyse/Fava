@@ -1,3 +1,0 @@
-ERROR: usage: __main__.py [options] [file_or_dir] [file_or_dir] [...]
-__main__.py: error: argument --tb: invalid choice: 'full' (choose from auto, long, short, no, line, native)
-
