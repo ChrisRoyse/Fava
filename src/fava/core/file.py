@@ -10,10 +10,11 @@ from dataclasses import replace
 from hashlib import sha256 # Keep for now if _sha256_str is used elsewhere or as fallback
 from operator import attrgetter
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from fava.pqc.backend_crypto_service import HashingProvider, HashingOperationFailedError # Added for PQC Hashing
-from fava.pqc.interfaces import HasherInterface # Added for PQC Hashing
+from fava.pqc.simple_hashers import simple_sha256_str  # Simple hashing to avoid circular imports
+from fava.pqc.backend_crypto_service import HashingProvider
+from fava.pqc.exceptions import HashingOperationFailedError
 
 from markupsafe import Markup
 
@@ -57,12 +58,12 @@ _EXCL_FLAGS = {
 }
 
 
-def _sha256_str(val: str) -> str: # This can be kept as a fallback or for non-PQC contexts if needed
-    """Hash a string using SHA256."""
-    return sha256(encode(val, encoding="utf-8")).hexdigest()
+def _sha256_str(val: str) -> str:
+    """Hash a string using SHA256. Now uses simple hasher to avoid circular imports."""
+    return simple_sha256_str(val)
 
-# Helper function to use the configured PQC hasher
-def _pqc_hash_str(hasher: HasherInterface, val: str) -> str:
+# Helper function to use the configured PQC hasher  
+def _pqc_hash_str(hasher: Any, val: str) -> str:
     """Hash a string using the provided PQC hasher instance."""
     # The HasherInterface's hash method takes bytes and returns bytes.
     # The concrete hashers (SHA256HasherImpl, etc.) have an added hash_string_to_hex.
@@ -193,7 +194,7 @@ class FileModule(FavaModule):
             self.ledger.watcher.notify(path)
 
             self.ledger.extensions.after_write_source(str(path), source)
-            self.ledger.load_file()
+            self.ledger._load_ledger_data()
 
             return _pqc_hash_str(self.hasher, source)
 
@@ -487,6 +488,7 @@ def save_entry_slice(
 
 
 def delete_entry_slice(
+    entry: Any,
     sha256sum: str,
 ) -> None:
     """Delete slice of the source file for an entry.

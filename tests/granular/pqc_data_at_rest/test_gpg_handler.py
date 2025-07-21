@@ -2,7 +2,7 @@ import pytest
 from unittest import mock
 
 # Import fixtures from the new location
-from .fixtures import mock_fava_config
+from tests.granular.pqc_data_at_rest.fixtures import mock_fava_config
 
 
 @pytest.mark.usefixtures("mock_fava_config")

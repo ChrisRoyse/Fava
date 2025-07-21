@@ -2,14 +2,14 @@ import pytest
 from unittest import mock
 
 # Import mocks from the new location
-from .mocks import (
+from tests.granular.pqc_data_at_rest.mocks import (
     MockOQS_KeyEncapsulation,
     MockX25519PrivateKey,
     MockX25519PublicKey,
     MockAESGCM
 )
 # Import fixtures from the new location
-from .fixtures import mock_crypto_libs, mock_fava_config
+from tests.granular.pqc_data_at_rest.fixtures import mock_crypto_libs, mock_fava_config
 
 
 @pytest.mark.usefixtures("mock_crypto_libs", "mock_fava_config")
@@ -399,10 +399,12 @@ class TestHybridPqcHandler:
         assert parsed_empty_bundle.symmetric_ciphertext == b""
         assert parsed_empty_bundle.symmetric_auth_tag == b""
 
-        with pytest.raises(ValueError, match="Data too short to read length prefix."):
+        from fava.core.encrypted_file_bundle import ValidationError
+        
+        with pytest.raises(ValidationError, match="Bundle too small for valid header"):
             EncryptedFileBundle.from_bytes(b"\x01\x00\x00")
 
-        with pytest.raises(ValueError, match="Data too short to read field content."):
+        with pytest.raises(ValidationError, match="Bundle too small for valid header"):
             EncryptedFileBundle.from_bytes(b"\x05\x00\x00\x00abc")
 
     @pytest.mark.error_handling

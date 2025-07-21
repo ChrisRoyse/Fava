@@ -59,8 +59,9 @@ export const auto_reload = derived(
   fava_options,
   ($fava_options) => $fava_options.auto_reload,
 );
-// TODO: equality comparison
 export const insert_entry = derived(
   fava_options,
   ($fava_options) => $fava_options.insert_entry,
+  // Custom equality comparison to prevent unnecessary updates
+  (a, b) => JSON.stringify(a) === JSON.stringify(b),
 );

@@ -27,6 +27,10 @@ class AlgorithmUnavailableError(PQCError):
     """Indicates that a cryptographic algorithm is unavailable in the environment."""
     pass
 
+class UnsupportedAlgorithmError(PQCError):
+    """Indicates that a cryptographic algorithm is not supported."""
+    pass
+
 class InvalidArgumentError(PQCError, ValueError):
     """Indicates an invalid argument was passed to a PQC function."""
     pass

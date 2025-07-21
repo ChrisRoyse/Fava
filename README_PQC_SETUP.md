@@ -212,6 +212,17 @@ Edit `pqc_config.json` to customize:
       "enabled": false,
       "backup_classical": true
     }
+  },
+  "wasm_module_integrity": {
+    "verification_enabled": true,
+    "signature_algorithm": "Dilithium3",
+    "key_source": "environment",
+    "module_path": "./src/fava/pqc/dynamic_key_mgmt.wasm",
+    "signature_path_suffix": ".sig",
+    "public_key_env_var": "FAVA_PQC_PUBLIC_KEY",
+    "private_key_env_var": "FAVA_PQC_PRIVATE_KEY",
+    "key_rotation_enabled": true,
+    "key_rotation_interval_days": 90
   }
 }
 ```
@@ -225,6 +236,55 @@ Create a `.env` file for sensitive configuration:
 PQC_CONFIG_PATH=./pqc_config.json
 FAVA_DEBUG_PQC=true
 FAVA_CRYPTO_AGILITY_MODE=hybrid
+```
+
+### 3. Enterprise Key Management
+
+For production environments, FavaPQC supports enterprise-grade key management systems:
+
+#### File-based Key Storage
+```json
+{
+  "wasm_module_integrity": {
+    "key_source": "file",
+    "key_file_path": "/etc/fava/keys/",
+    "signature_algorithm": "Dilithium3"
+  }
+}
+```
+
+#### HashiCorp Vault Integration
+```json
+{
+  "wasm_module_integrity": {
+    "key_source": "vault",
+    "vault_url": "https://vault.example.com:8200",
+    "vault_mount_path": "kv-v2",
+    "vault_secret_path": "fava/pqc-keys",
+    "vault_auth_method": "token",
+    "vault_token_env_var": "VAULT_TOKEN",
+    "vault_tls_verify": true,
+    "vault_key_rotation_enabled": true
+  }
+}
+```
+
+#### Hardware Security Module (HSM) Support
+```json
+{
+  "wasm_module_integrity": {
+    "key_source": "hsm",
+    "hsm_library_path": "/usr/lib/libpkcs11.so",
+    "hsm_slot_id": 0,
+    "hsm_token_label": "fava-pqc",
+    "hsm_pin_env_var": "HSM_PIN",
+    "hsm_public_key_id": "pqc-public-key",
+    "hsm_private_key_id": "pqc-private-key",
+    "hsm_key_usage": "sign_verify",
+    "hsm_session_timeout": 300,
+    "hsm_max_retries": 3
+  }
+}
 ```
 
 ## 🔒 Security Considerations

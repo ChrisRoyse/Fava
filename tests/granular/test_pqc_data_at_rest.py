@@ -2,14 +2,14 @@ import pytest
 from unittest import mock
 
 # Import test classes from their new modules
-from .pqc_data_at_rest.test_key_management import TestKeyManagementFunctions
-from .pqc_data_at_rest.test_hybrid_pqc_handler import TestHybridPqcHandler
-from .pqc_data_at_rest.test_gpg_handler import TestGpgHandler
-from .pqc_data_at_rest.test_crypto_service_locator import TestCryptoServiceLocator
-from .pqc_data_at_rest.test_fava_ledger_integration import TestFavaLedgerIntegration
+from tests.granular.pqc_data_at_rest.test_key_management import TestKeyManagementFunctions
+from tests.granular.pqc_data_at_rest.test_hybrid_pqc_handler import TestHybridPqcHandler
+from tests.granular.pqc_data_at_rest.test_gpg_handler import TestGpgHandler
+from tests.granular.pqc_data_at_rest.test_crypto_service_locator import TestCryptoServiceLocator
+from tests.granular.pqc_data_at_rest.test_fava_ledger_integration import TestFavaLedgerIntegration
 
 # Import fixtures from their new module so they are discoverable by pytest
-from .pqc_data_at_rest.fixtures import mock_crypto_libs, mock_fava_config
+from tests.granular.pqc_data_at_rest.fixtures import mock_crypto_libs, mock_fava_config
 
 # --- Placeholder for Application Modules (UUTs) ---
 # These would normally be imported, e.g.:

@@ -44,7 +44,7 @@ class TestGlobalConfig:
         mock_parse_structure.assert_called_once_with(str(expected_config))
         mock_validate_schema.assert_called_once_with(expected_config, FAVA_CRYPTO_SETTINGS_ExpectedSchema)
         assert config == expected_config
-        assert "Successfully loaded and validated crypto settings." in caplog.text
+        assert "Successfully loaded and validated crypto settings from" in caplog.text
 
     @pytest.mark.critical_path
     @pytest.mark.config_dependent
@@ -59,7 +59,7 @@ class TestGlobalConfig:
         mock_read_file = mocker.patch("fava.pqc.global_config.file_system.read_file_content")
         mock_read_file.side_effect = FileNotFoundError("Mocked FileNotFoundError")
 
-        with pytest.raises(CriticalConfigurationError, match="Crypto settings file is missing."):
+        with pytest.raises(CriticalConfigurationError, match="Crypto settings file .* is missing."):
             GlobalConfig.load_crypto_settings()
         
         mock_read_file.assert_called_once_with(FAVA_CRYPTO_SETTINGS_PATH)
@@ -82,11 +82,12 @@ class TestGlobalConfig:
         mock_read_file.return_value = malformed_string
         mock_parse_structure.side_effect = PQCInternalParsingError("Mocked parsing error")
 
-        with pytest.raises(CriticalConfigurationError, match="Crypto settings file is malformed."):
+        with pytest.raises(CriticalConfigurationError, match="Crypto settings file .* is malformed."):
             GlobalConfig.load_crypto_settings()
         
         mock_parse_structure.assert_called_once_with(malformed_string)
-        assert "Failed to parse crypto settings: Mocked parsing error" in caplog.text
+        assert "Failed to parse crypto settings from" in caplog.text
+        assert "Mocked parsing error" in caplog.text
 
     @pytest.mark.config_dependent
     @pytest.mark.error_handling
@@ -106,12 +107,12 @@ class TestGlobalConfig:
         mock_parse_structure.return_value = invalid_schema_config
         mock_validate_schema.return_value = False # Simulate schema validation failure
 
-        with pytest.raises(CriticalConfigurationError, match="Crypto settings are invalid: Crypto settings schema validation failed."):
+        with pytest.raises(CriticalConfigurationError, match="Crypto settings in .* are invalid: Crypto settings schema validation failed"):
             GlobalConfig.load_crypto_settings()
         
         mock_validate_schema.assert_called_once_with(invalid_schema_config, FAVA_CRYPTO_SETTINGS_ExpectedSchema)
-        assert "Crypto settings schema validation failed." in caplog.text
-        assert "Invalid crypto settings: Crypto settings schema validation failed." in caplog.text
+        assert "Crypto settings schema validation failed for" in caplog.text
+        assert "Invalid crypto settings in" in caplog.text
 
 
     @pytest.mark.critical_path

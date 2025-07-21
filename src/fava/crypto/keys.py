@@ -8,6 +8,7 @@ specifically using the oqs-python library.
 from typing import Tuple, Optional, Any, Dict, Union
 import os
 import oqs
+import logging
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes, serialization
@@ -16,6 +17,8 @@ from cryptography.hazmat.backends import default_backend
 from argon2.low_level import hash_secret_raw, Type # argon2-cffi direct usage
 from . import exceptions
 from .exceptions import KeyGenerationError, InvalidKeyError, UnsupportedAlgorithmError, CryptoError
+
+logger = logging.getLogger(__name__)
 
 # Re-export for test compatibility
 HKDFExpand = HKDF
@@ -227,10 +230,110 @@ def export_fava_managed_pqc_private_keys(
 def _retrieve_stored_or_derived_pqc_private_key(
     key_id: str, config: Any, passphrase: Optional[str] = None
 ) -> Optional[bytes]:
-    # This remains a placeholder as its full implementation depends on Fava's key storage strategy
-    if key_id == "user_context_1_pqc_test" and passphrase == "export_passphrase_test":
-        # For Kyber768, SK is 2400 bytes. This is a mock placeholder.
-        return b"mock_pqc_sk_for_export_len_2400" + os.urandom(2400 - len(b"mock_pqc_sk_for_export_len_2400"))
+    """
+    Real implementation for retrieving stored PQC private keys.
+    
+    This replaces the mock implementation with actual key storage/retrieval.
+    """
+    try:
+        # Determine key storage method from config
+        key_storage_mode = getattr(config, 'pqc_key_storage_mode', 'file_encrypted')
+        
+        if key_storage_mode == 'file_encrypted':
+            return _load_encrypted_key_from_file(key_id, passphrase, config)
+        elif key_storage_mode == 'passphrase_derived':
+            return _derive_key_from_passphrase(key_id, passphrase, config)
+        elif key_storage_mode == 'hardware_keystore':
+            return _load_key_from_hardware_keystore(key_id, config)
+        else:
+            logger.error(f"Unsupported key storage mode: {key_storage_mode}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Key retrieval failed for {key_id}: {e}")
+        return None
+
+
+def _load_encrypted_key_from_file(key_id: str, passphrase: str, config: Any) -> Optional[bytes]:
+    """Load and decrypt key from encrypted file."""
+    try:
+        from pathlib import Path
+        from cryptography.fernet import Fernet
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.backends import default_backend
+        import base64
+        
+        key_dir = Path(getattr(config, 'pqc_key_directory', 'keys'))
+        key_file = key_dir / f"{key_id}.encrypted"
+        
+        if not key_file.exists():
+            logger.warning(f"Key file not found: {key_file}")
+            return None
+            
+        # Read encrypted key data
+        with open(key_file, 'rb') as f:
+            encrypted_data = f.read()
+            
+        # Decrypt using passphrase
+        salt = encrypted_data[:16]  # First 16 bytes are salt
+        encrypted_key = encrypted_data[16:]
+        
+        # Derive decryption key from passphrase
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+            backend=default_backend()
+        )
+        decryption_key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
+        
+        # Decrypt
+        f = Fernet(decryption_key)
+        private_key_bytes = f.decrypt(encrypted_key)
+        
+        return private_key_bytes
+        
+    except Exception as e:
+        logger.error(f"Failed to load encrypted key {key_id}: {e}")
+        return None
+
+
+def _derive_key_from_passphrase(key_id: str, passphrase: str, config: Any) -> Optional[bytes]:
+    """Derive key deterministically from passphrase."""
+    try:
+        import hashlib
+        
+        # Use key_id as part of salt for domain separation
+        salt = hashlib.sha256(f"fava_pqc_key_{key_id}".encode()).digest()[:16]
+        
+        # Get algorithm from config
+        pqc_algorithm = getattr(config, 'default_pqc_kem_algorithm', 'Kyber768')
+        
+        if pqc_algorithm == 'Kyber768':
+            # Kyber768 secret key is 2400 bytes (verified in this environment)
+            required_length = 2400
+        else:
+            logger.error(f"Unsupported PQC algorithm for key derivation: {pqc_algorithm}")
+            return None
+            
+        # Derive key using Argon2id
+        argon2_kdf = Argon2id(hash_len=required_length)
+        derived_key = argon2_kdf.derive(passphrase, salt)
+        
+        return derived_key
+        
+    except Exception as e:
+        logger.error(f"Failed to derive key {key_id}: {e}")
+        return None
+
+
+def _load_key_from_hardware_keystore(key_id: str, config: Any) -> Optional[bytes]:
+    """Load key from hardware security module or keystore."""
+    # Implementation depends on specific HSM/keystore being used
+    # This is a placeholder for HSM integration
+    logger.warning(f"Hardware keystore not implemented for key {key_id}")
     return None
 
 def secure_format_for_export(

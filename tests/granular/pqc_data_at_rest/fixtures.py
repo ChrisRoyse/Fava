@@ -1,7 +1,7 @@
 import pytest
 from unittest import mock
 from fava.core.fava_options import FavaOptions # Import the real FavaOptions
-from .mocks import (
+from tests.granular.pqc_data_at_rest.mocks import (
     MockOQS_KeyEncapsulation,
     MockX25519PrivateKey,
     MockX25519PublicKey,
@@ -36,25 +36,37 @@ def mock_fava_config():
     """Provides a mock FavaOptions object."""
     # Use spec to make the mock behave more like the real FavaOptions class
     config = mock.Mock(spec=FavaOptions)
-    config.pqc_data_at_rest_enabled = True
-    config.pqc_active_suite_id = "X25519_KYBER768_AES256GCM"
-    config.pqc_key_management_mode = "PASSPHRASE_DERIVED" # or "EXTERNAL_FILE"
-    config.pqc_suites = {
-        "X25519_KYBER768_AES256GCM": {
-            "id": "X25519_KYBER768_AES256GCM",
-            "classical_kem_algorithm": "X25519",
-            "pqc_kem_algorithm": "ML-KEM-768", # Matched to oqs.KeyEncapsulation
-            "symmetric_algorithm": "AES256GCM",
-            "kdf_algorithm_for_hybrid_sk": "HKDF-SHA3-512", # For HKDFExpand mock
-            "pbkdf_algorithm_for_passphrase": "Argon2id", # For Argon2id mock
-            "kdf_algorithm_for_ikm_from_pbkdf": "HKDF-SHA3-512"
-        }
+    
+    # Create a dictionary of all the attributes we need
+    attributes = {
+        'pqc_data_at_rest_enabled': True,
+        'pqc_active_suite_id': "X25519_KYBER768_AES256GCM",
+        'pqc_key_management_mode': "PASSPHRASE_DERIVED", # or "EXTERNAL_FILE"
+        'pqc_suites': {
+            "X25519_KYBER768_AES256GCM": {
+                "id": "X25519_KYBER768_AES256GCM",
+                "classical_kem_algorithm": "X25519",
+                "pqc_kem_algorithm": "ML-KEM-768", # Matched to oqs.KeyEncapsulation
+                "symmetric_algorithm": "AES256GCM",
+                "kdf_algorithm_for_hybrid_sk": "HKDF-SHA3-512", # For HKDFExpand mock
+                "pbkdf_algorithm_for_passphrase": "Argon2id", # For Argon2id mock
+                "kdf_algorithm_for_ikm_from_pbkdf": "HKDF-SHA3-512"
+            }
+        },
+        'pqc_key_file_paths': {
+            "classical_private": "path/to/classical.key",
+            "pqc_private": "path/to/pqc.key"
+        },
+        'pqc_fallback_to_classical_gpg': True,
+        'gpg_options': "--some-gpg-option",
+        'input_files': ["mock_ledger.beancount"] # Add input_files for FavaLedger init
     }
-    config.pqc_key_file_paths = {
-        "classical_private": "path/to/classical.key",
-        "pqc_private": "path/to/pqc.key"
-    }
-    config.pqc_fallback_to_classical_gpg = True
-    config.gpg_options = "--some-gpg-option"
-    config.input_files = ["mock_ledger.beancount"] # Add input_files for FavaLedger init
+    
+    # Set attributes directly on the mock
+    for key, value in attributes.items():
+        setattr(config, key, value)
+    
+    # Make sure getattr works correctly by configuring the mock
+    config.configure_mock(**attributes)
+    
     return config

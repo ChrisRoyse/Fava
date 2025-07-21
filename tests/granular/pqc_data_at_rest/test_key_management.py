@@ -2,14 +2,14 @@ import pytest
 from unittest import mock
 
 # Import mocks from the new location
-from .mocks import (
+from tests.granular.pqc_data_at_rest.mocks import (
     MockOQS_KeyEncapsulation,
     MockX25519PrivateKey,
     MockArgon2id,
     MockHKDF
 )
 # Import fixtures from the new location
-from .fixtures import mock_crypto_libs, mock_fava_config
+from tests.granular.pqc_data_at_rest.fixtures import mock_crypto_libs, mock_fava_config
 
 class TestKeyManagementFunctions:
     """

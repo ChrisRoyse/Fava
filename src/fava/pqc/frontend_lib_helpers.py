@@ -1,70 +1,152 @@
 # src/fava/pqc/frontend_lib_helpers.py
 """
-Placeholder helper modules for frontend-specific operations (API calls, JS crypto),
-intended for mocking in tests of FrontendCryptoFacade.
-Python representation for conceptual frontend logic.
+Real frontend cryptographic helpers replacing placeholder implementations.
 """
-from typing import Any, Dict, Optional
 
-# HTTP_CLIENT Placeholder (for API calls)
-class HTTPClientHelper:
+import asyncio
+import time
+import hashlib
+import base64
+import oqs
+from typing import Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class RealHTTPClientHelper:
+    """Real HTTP client implementation."""
+    
     @staticmethod
     async def http_get_json(url: str) -> Dict[str, Any]:
-        """Simulates an async HTTP GET request returning JSON."""
-        # This will be mocked in tests.
-        raise NotImplementedError("HTTPClientHelper.http_get_json should be mocked.")
+        """Real async HTTP GET request."""
+        try:
+            # For now, use a basic implementation that would work in browser context
+            # In a real frontend, this would use fetch() API or similar
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.json()
+        except ImportError:
+            # Fallback for environments without aiohttp
+            import urllib.request
+            import json
+            with urllib.request.urlopen(url) as response:
+                data = response.read().decode('utf-8')
+                return json.loads(data)
+        except Exception as e:
+            logger.error(f"HTTP GET failed for {url}: {e}")
+            raise
 
-# SYSTEM_TIME Placeholder
-class SystemTimeHelper:
+
+class RealSystemTimeHelper:
+    """Real system time implementation."""
+    
     @staticmethod
     def get_system_time_ms() -> int:
-        """Simulates getting current system time in milliseconds."""
-        # This will be mocked in tests.
-        raise NotImplementedError("SystemTimeHelper.get_system_time_ms should be mocked.")
+        """Get current system time in milliseconds."""
+        return int(time.time() * 1000)
 
-# JS_CRYPTO_LIBS Placeholder
-class JSCryptoSHA256Helper:
+
+class RealJSCryptoSHA256Helper:
+    """Real SHA256 implementation."""
+    
     @staticmethod
     def hash(data_bytes: bytes) -> bytes:
-        """Simulates SHA256 hashing from a JS library."""
-        raise NotImplementedError("JSCryptoSHA256Helper.hash should be mocked.")
+        """Real SHA256 hashing."""
+        if not isinstance(data_bytes, bytes):
+            raise ValueError("Input must be bytes")
+        return hashlib.sha256(data_bytes).digest()
 
-class JSCryptoSHA3_256Helper: # Corrected class name
+
+class RealJSCryptoSHA3_256Helper:
+    """Real SHA3-256 implementation."""
+    
     @staticmethod
     def hash(data_bytes: bytes) -> bytes:
-        """Simulates SHA3-256 hashing from a JS library (e.g., js-sha3)."""
-        raise NotImplementedError("JSCryptoSHA3_256Helper.hash should be mocked.") # Corrected method name
+        """Real SHA3-256 hashing."""
+        if not isinstance(data_bytes, bytes):
+            raise ValueError("Input must be bytes")
+        return hashlib.sha3_256(data_bytes).digest()
 
-class LibOQSJSHelper: # Renamed for clarity
+
+class RealLibOQSJSHelper:
+    """Real liboqs implementation for frontend operations."""
+    
     @staticmethod
     def dilithium3_verify(message_buffer: bytes, signature_buffer: bytes, public_key_bytes: bytes) -> bool:
-        """Simulates Dilithium3 verification using a liboqs-js like interface."""
-        # This will be mocked in tests.
-        raise NotImplementedError("LibOQSJSHelper.dilithium3_verify should be mocked.")
+        """
+        Real Dilithium3 signature verification.
+        
+        Args:
+            message_buffer: Message that was signed
+            signature_buffer: Dilithium3 signature (2420 bytes)
+            public_key_bytes: Dilithium3 public key (1952 bytes)
+            
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        try:
+            # Validate input parameters
+            if not isinstance(message_buffer, bytes):
+                logger.warning("Message buffer is not bytes")
+                return False
+            if not isinstance(signature_buffer, bytes):
+                logger.warning("Signature buffer is not bytes")
+                return False
+            if not isinstance(public_key_bytes, bytes):
+                logger.warning("Public key bytes is not bytes")
+                return False
+                
+            # Dilithium3 public key is 1952 bytes
+            if len(public_key_bytes) != 1952:
+                logger.warning(f"Invalid Dilithium3 public key length: {len(public_key_bytes)} (expected 1952)")
+                return False
+                
+            # Dilithium3 signature length is variable (around 2420-3300 bytes depending on implementation)
+            if len(signature_buffer) < 2000 or len(signature_buffer) > 4000:
+                logger.warning(f"Invalid Dilithium3 signature length: {len(signature_buffer)} (expected 2000-4000)")
+                return False
+                
+            with oqs.Signature("Dilithium3") as verifier:
+                # Verify signature
+                is_valid = verifier.verify(message_buffer, signature_buffer, public_key_bytes)
+                logger.debug(f"Dilithium3 verification result: {is_valid}")
+                return is_valid
+                
+        except oqs.MechanismNotSupportedError as e:
+            logger.error(f"Dilithium3 not supported by liboqs: {e}")
+            return False
+        except Exception as e:
+            # Log error but return False for security
+            logger.error(f"Dilithium3 verification failed: {e}")
+            return False
 
 
-# UTILITIES Placeholder (for encoding, decoding)
+# UTILITIES - keep real implementations (these were already real)
 class FrontendUtilitiesHelper:
     @staticmethod
     def utf8_encode(data_string: str) -> bytes:
-        """Simulates UTF-8 encoding."""
-        return data_string.encode('utf-8') # Can be a real implementation
+        """UTF-8 encoding."""
+        return data_string.encode('utf-8')
 
     @staticmethod
     def bytes_to_hex_string(data_bytes: bytes) -> str:
-        """Simulates converting bytes to a hex string."""
-        return data_bytes.hex() # Can be a real implementation
+        """Converting bytes to a hex string."""
+        return data_bytes.hex()
 
     @staticmethod
     def base64_decode(b64_string: str) -> bytes:
-        """Simulates Base64 decoding."""
+        """Base64 decoding."""
         import base64
-        return base64.b64decode(b64_string) # Can be a real implementation
+        return base64.b64decode(b64_string)
 
-# Expose for easy patching
-HTTP_CLIENT = HTTPClientHelper
-SYSTEM_TIME = SystemTimeHelper
-JS_CRYPTO_SHA256 = JSCryptoSHA256Helper
-JS_CRYPTO_SHA3_256 = JSCryptoSHA3_256Helper # Corrected export name
-LIBOQS_JS = LibOQSJSHelper # Renamed export
-FRONTEND_UTILS = FrontendUtilitiesHelper
+
+# Replace placeholders with real implementations
+HTTP_CLIENT = RealHTTPClientHelper
+SYSTEM_TIME = RealSystemTimeHelper
+JS_CRYPTO_SHA256 = RealJSCryptoSHA256Helper
+JS_CRYPTO_SHA3_256 = RealJSCryptoSHA3_256Helper
+LIBOQS_JS = RealLibOQSJSHelper
+FRONTEND_UTILS = FrontendUtilitiesHelper  # Keep existing real implementation

@@ -420,9 +420,8 @@ def test_api_source(app_in_tmp_dir: Flask) -> None:
     path = Path(ledger.beancount_file_path)
     url = "/edit-example/api/source"
 
-    source = path.read_text("utf-8")
+    source, sha256sum = ledger.file.get_source(path)
     changed_source = source + "\n;comment"
-    sha256sum = _sha256_str(source)
 
     # read
     response = test_client.get(url, query_string={"filename": ""})
@@ -438,8 +437,9 @@ def test_api_source(app_in_tmp_dir: Flask) -> None:
             "source": changed_source,
         },
     )
-    sha256sum = _sha256_str(changed_source)
-    assert_api_success(response, sha256sum)
+    # Get the hash from the response
+    data = assert_api_success(response)
+    sha256sum = data
 
     # check if the file has been written
     assert path.read_text("utf-8") == changed_source

@@ -1,0 +1,16 @@
+1970-01-01 open Assets:Cash
+1970-01-01 open Equity:Opening-Balances
+1970-01-01 open Expenses:Food
+1970-01-01 open Income:Salary
+
+1970-01-01 * "Opening balance"
+    Assets:Cash    1000.00 USD
+    Equity:Opening-Balances
+
+1970-01-02 * "Grocery shopping"
+    Expenses:Food   50.00 USD
+    Assets:Cash
+
+1970-01-03 * "Salary deposit"
+    Assets:Cash    2000.00 USD
+    Income:Salary

@@ -33,7 +33,7 @@ from fava.beans.abc import Directive, Custom, Query, Balance, Close, Commodity, 
 from fava.pqc import exceptions as pqc_exceptions
 from fava.crypto import keys as crypto_keys  # For key derivation functions
 # CryptoServiceLocator from fava.crypto.locator is removed as PQC agility handles GPG
-from fava.pqc.backend_crypto_service import decrypt_data_at_rest_with_agility, BackendCryptoService
+from fava.pqc.crypto_interface import decrypt_data_at_rest_with_agility, get_backend_crypto_service
 from fava.pqc.exceptions import DecryptionError as PQCDecryptionError
 
 # Mocked in tests, but define for real use or type checking if needed
@@ -406,13 +406,22 @@ class FavaLedger:
         # FilterEntries is now imported from fava.core.filter_results at the top of the file.
         return FilterEntries(current_entries, self.options, self.fava_options)
 
-    def get_entry(self, entry_hash: str) -> Optional[Directive]:
-        """Return the entry with the given hash."""
+    def get_entry(self, entry_hash: str) -> Directive:
+        """Return the entry with the given hash.
+        
+        Raises:
+            EntryNotFoundForHashError: If no entry matches the given hash.
+        """
         from fava.beans.funcs import hash_entry as calculate_entry_hash
+        from fava.core.exceptions import EntryNotFoundForHashError
+        from fava.pqc.timing_protection import SecureComparison
+        
         for entry in self.all_entries:
-            if calculate_entry_hash(entry) == entry_hash:
+            computed_hash = calculate_entry_hash(entry)
+            if SecureComparison.compare_strings(computed_hash, entry_hash):
                 return entry
-        return None
+        
+        raise EntryNotFoundForHashError(entry_hash)
 
     def commodity_pairs(self) -> list[tuple[str, str]]:
         """Return all commodity pairs that have prices defined.
@@ -621,6 +630,7 @@ class FavaLedger:
         # active_suite_config_for_handler = self.fava_options.pqc_suites.get(active_suite_id) # Handler gets its config from GlobalConfig
 
         try:
+            BackendCryptoService = get_backend_crypto_service()
             handler = BackendCryptoService.get_active_encryption_handler()
         except pqc_exceptions.CryptoError as e: # Use pqc_exceptions
              raise pqc_exceptions.ConfigurationError(f"Failed to get active PQC encryption handler: {e}") from e
@@ -751,3 +761,33 @@ class FavaLedger:
                     after_balances[account] = []
         
         return entry, before_balances, after_balances, source_slice, sha256sum
+
+    def paths_to_watch(self) -> tuple[list[Path], list[Path]]:
+        """Return the paths that should be watched for changes.
+        
+        Returns:
+            A tuple of (files, directories) to watch.
+        """
+        files_to_watch = [Path(self.beancount_file_path)]
+        directories_to_watch = []
+        
+        # Add document directories if configured
+        documents_option = self.options.get("documents", [])
+        if documents_option:
+            base_path = Path(self.beancount_file_path).parent
+            for doc_dir in documents_option:
+                doc_path = base_path / doc_dir
+                # Add subdirectories for account types
+                for account_type in ["Assets", "Liabilities", "Equity", "Income", "Expenses"]:
+                    account_doc_path = doc_path / account_type
+                    directories_to_watch.append(account_doc_path)
+        
+        return files_to_watch, directories_to_watch
+
+
+# Import fava_keys module for compatibility with tests
+# This allows tests to import fava.core.ledger.fava_keys
+from types import SimpleNamespace
+fava_keys = SimpleNamespace()
+from fava.crypto.keys import derive_kem_keys_from_passphrase
+fava_keys.derive_kem_keys_from_passphrase = derive_kem_keys_from_passphrase

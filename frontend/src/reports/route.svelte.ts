@@ -2,8 +2,8 @@
 export function updateable_props<T extends Record<string, unknown>>(
   raw_props: T,
 ): [props: T, update: (v: T) => void] {
-  // TODO: this makes it deeply reactive, which adds unnecessary overhead
-  const props = $state(raw_props);
+  // Use shallow reactivity to avoid unnecessary overhead from deep watching
+  const props = $state.raw(raw_props);
   return [
     props,
     (new_props) => {

@@ -904,6 +904,7 @@
     "currency_column": 61,
     "default_file": null,
     "default_page": "income_statement/",
+    "fava_crypto_settings_file": null,
     "fiscal_year_end": {
       "day": 31,
       "month": 12
@@ -931,10 +932,8 @@
   ],
   "options": {
     "documents": [],
-    "filename": "TEST_DATA_DIR/long-example.beancount",
-    "include": [
-      "TEST_DATA_DIR/long-example.beancount"
-    ],
+    "filename": "<string>",
+    "include": [],
     "name_assets": "Assets",
     "name_equity": "Equity",
     "name_expenses": "Expenses",

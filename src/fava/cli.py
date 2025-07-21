@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import os
+import sys
 from pathlib import Path
 
 import click
@@ -52,7 +53,14 @@ def _add_env_filenames(filenames: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(all_names))
 
 
-@click.command(context_settings={"auto_envvar_prefix": "FAVA"})
+@click.group(context_settings={"auto_envvar_prefix": "FAVA"})
+@click.version_option(version=__version__, prog_name="fava")
+def cli() -> None:
+    """Fava - web interface for Beancount with PQC security."""
+    pass
+
+
+@cli.command()
 @click.argument(
     "filenames",
     nargs=-1,
@@ -101,8 +109,7 @@ def _add_env_filenames(filenames: tuple[str, ...]) -> tuple[str, ...]:
 @click.option(
     "--poll-watcher", is_flag=True, help="Use old polling-based watcher."
 )
-@click.version_option(version=__version__, prog_name="fava")
-def main(  # noqa: PLR0913
+def start(  # noqa: PLR0913
     *,
     filenames: tuple[str, ...] = (),
     port: int = 5000,
@@ -178,6 +185,207 @@ def main(  # noqa: PLR0913
             raise
 
 
+# PQC Key Management Commands
+@cli.group()
+def pqc() -> None:
+    """PQC (Post-Quantum Cryptography) key management commands."""
+    pass
+
+
+@pqc.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to crypto settings configuration file.",
+)
+@click.option(
+    "--key-source",
+    type=click.Choice(["environment", "file", "vault", "hsm"]),
+    default="environment",
+    help="Key source type.",
+)
+def generate(config: str | None, key_source: str) -> None:
+    """Generate new PQC keypair."""
+    try:
+        from fava.pqc.global_config import GlobalConfig
+        from fava.pqc.key_manager import PQCKeyManager
+        
+        # Load configuration
+        crypto_settings = GlobalConfig.get_crypto_settings(config)
+        
+        # Override key source if specified
+        if key_source != "environment":
+            crypto_settings["wasm_module_integrity"]["key_source"] = key_source
+        
+        # Initialize key manager
+        key_manager = PQCKeyManager(crypto_settings)
+        
+        click.echo("Generating new PQC keypair...")
+        public_key, private_key = key_manager.generate_keypair()
+        
+        click.echo("Storing keypair...")
+        key_manager.store_keypair(public_key, private_key)
+        
+        click.secho("✓ PQC keypair generated and stored successfully!", fg="green")
+        
+        # Display key info
+        key_info = key_manager.get_key_info()
+        click.echo(f"Algorithm: {key_info['algorithm']}")
+        click.echo(f"Key Source: {key_info['key_source']}")
+        click.echo(f"Public Key Size: {key_info['public_key_size']} bytes")
+        click.echo(f"Private Key Size: {key_info['private_key_size']} bytes")
+        click.echo(f"Public Key Hash: {key_info['public_key_hash']}")
+        
+    except Exception as e:
+        click.secho(f"✗ Failed to generate keypair: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+@pqc.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to crypto settings configuration file.",
+)
+def validate(config: str | None) -> None:
+    """Validate current PQC keys."""
+    try:
+        from fava.pqc.global_config import GlobalConfig
+        
+        click.echo("Validating PQC keys...")
+        
+        is_valid = GlobalConfig.validate_key_configuration()
+        
+        if is_valid:
+            click.secho("✓ PQC keys are valid and functional!", fg="green")
+            
+            # Display key info
+            key_info = GlobalConfig.get_key_info()
+            click.echo(f"Algorithm: {key_info['algorithm']}")
+            click.echo(f"Key Source: {key_info['key_source']}")
+            click.echo(f"Status: {key_info['status']}")
+            click.echo(f"Public Key Hash: {key_info.get('public_key_hash', 'N/A')}")
+        else:
+            click.secho("✗ PQC keys validation failed!", fg="red")
+            sys.exit(1)
+            
+    except Exception as e:
+        click.secho(f"✗ Key validation error: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+@pqc.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to crypto settings configuration file.",
+)
+def info(config: str | None) -> None:
+    """Display information about current PQC keys."""
+    try:
+        from fava.pqc.global_config import GlobalConfig
+        
+        key_info = GlobalConfig.get_key_info()
+        
+        click.echo("=== PQC Key Information ===")
+        click.echo(f"Algorithm: {key_info.get('algorithm', 'Unknown')}")
+        click.echo(f"Key Source: {key_info.get('key_source', 'Unknown')}")
+        click.echo(f"Status: {key_info.get('status', 'Unknown')}")
+        
+        if key_info.get('status') == 'valid':
+            click.echo(f"Public Key Size: {key_info.get('public_key_size', 'N/A')} bytes")
+            click.echo(f"Private Key Size: {key_info.get('private_key_size', 'N/A')} bytes")
+            click.echo(f"Public Key Hash: {key_info.get('public_key_hash', 'N/A')}")
+            
+            if key_info.get('rotation_enabled'):
+                click.echo(f"Key Rotation: Enabled (every {key_info.get('rotation_interval_days', 'N/A')} days)")
+                click.echo(f"Last Rotation: {key_info.get('last_rotation', 'Never')}")
+                click.echo(f"Next Rotation: {key_info.get('next_rotation', 'N/A')}")
+            else:
+                click.echo("Key Rotation: Disabled")
+        
+        if key_info.get('status') == 'error':
+            click.secho(f"Error: {key_info.get('error', 'Unknown error')}", fg="red")
+        
+        click.echo(f"Timestamp: {key_info.get('timestamp', 'N/A')}")
+        
+    except Exception as e:
+        click.secho(f"✗ Failed to get key info: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+@pqc.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to crypto settings configuration file.",
+)
+@click.confirmation_option(
+    prompt="Are you sure you want to rotate the PQC keys? This will generate new keys and backup the old ones."
+)
+def rotate(config: str | None) -> None:
+    """Rotate PQC keys by generating new ones."""
+    try:
+        from fava.pqc.global_config import GlobalConfig
+        
+        click.echo("Starting PQC key rotation...")
+        
+        success = GlobalConfig.rotate_keys()
+        
+        if success:
+            click.secho("✓ PQC keys rotated successfully!", fg="green")
+            
+            # Display new key info
+            key_info = GlobalConfig.get_key_info()
+            click.echo(f"New Public Key Hash: {key_info.get('public_key_hash', 'N/A')}")
+            click.echo(f"Rotation Timestamp: {key_info.get('timestamp', 'N/A')}")
+        else:
+            click.secho("✗ PQC key rotation failed!", fg="red")
+            sys.exit(1)
+            
+    except Exception as e:
+        click.secho(f"✗ Key rotation error: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+@pqc.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to crypto settings configuration file.",
+)
+def ensure(config: str | None) -> None:
+    """Ensure PQC keys exist, generating them if necessary."""
+    try:
+        from fava.pqc.global_config import GlobalConfig
+        
+        click.echo("Ensuring PQC keys exist...")
+        
+        success = GlobalConfig.ensure_keys_exist()
+        
+        if success:
+            click.secho("✓ PQC keys are available!", fg="green")
+            
+            # Display key info
+            key_info = GlobalConfig.get_key_info()
+            click.echo(f"Algorithm: {key_info['algorithm']}")
+            click.echo(f"Key Source: {key_info['key_source']}")
+            click.echo(f"Public Key Hash: {key_info.get('public_key_hash', 'N/A')}")
+        else:
+            click.secho("✗ Failed to ensure PQC keys exist!", fg="red")
+            sys.exit(1)
+            
+    except Exception as e:
+        click.secho(f"✗ Key initialization error: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+# Maintain backward compatibility for the original main function
+def main() -> None:  # pragma: no cover
+    """Entry point for backward compatibility."""
+    cli()
+
+
 # needed for pyinstaller:
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    cli()

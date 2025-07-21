@@ -13,9 +13,7 @@ const mockOqsSignatureInstance = {
 
 // Use the imported IOqsGlobal type for the mock
 const mockOqs: IOqsGlobal = {
-  Signature: vi.fn().mockImplementation(() => mockOqsSignatureInstance),
-  // KEM property is not part of IOqsGlobal, remove if not needed or adjust IOqsGlobal
-  // For now, assuming KEM is not strictly needed for these tests based on IOqsGlobal structure
+  Signature: vi.fn(() => mockOqsSignatureInstance),
 };
 
 function mockFetchHashingConfig(algorithm: string = 'SHA3-256') {
@@ -58,9 +56,19 @@ describe('Frontend Performance Tests', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {}); // Suppress console.warn
     vi.spyOn(console, 'error').mockImplementation(() => {}); // Suppress console.error
     
-    // Backup and set the mock OQS object
+    // Mock atob for base64 decoding - this is critical for the performance tests
+    vi.stubGlobal('atob', (b64Encoded: string) => {
+      try {
+        // Use Node.js Buffer to decode base64 for testing
+        return Buffer.from(b64Encoded, 'base64').toString('latin1');
+      } catch (error) {
+        throw new DOMException('Failed to execute \'atob\' on \'Window\': The string to be decoded is not correctly encoded.', 'InvalidCharacterError');
+      }
+    });
+    
+    // Backup and set the mock OQS object using vi.stubGlobal for consistency
     originalGlobalOQS = (globalThis as any).OQS;
-    (globalThis as any).OQS = mockOqs;
+    vi.stubGlobal('OQS', mockOqs);
     mockOqsSignatureInstance.verify.mockReset();
     // Default mock for successful verification in performance tests
     mockOqsSignatureInstance.verify.mockImplementation(() => { // Removed async from mock definition
@@ -122,6 +130,13 @@ describe('Frontend Performance Tests', () => {
     const publicKeyBase64 = Buffer.from(generateRandomUint8Array(1952)).toString('base64'); 
     const algorithmName = 'Dilithium3';
 
+    // Debug: Log the mock state
+    console.log('DEBUG: Mock OQS Signature constructor:', typeof mockOqs.Signature);
+    console.log('DEBUG: Mock verify function:', typeof mockOqsSignatureInstance.verify);
+    console.log('DEBUG: Global OQS:', typeof (globalThis as any).OQS);
+    console.log('DEBUG: Public key Base64 length:', publicKeyBase64.length);
+    console.log('DEBUG: Public key Base64 sample:', publicKeyBase64.substring(0, 20) + '...');
+
     // The mock is now set in beforeEach to return true by default.
     // If a specific test needs it to return false, it can be overridden within that test.
 
@@ -129,6 +144,10 @@ describe('Frontend Performance Tests', () => {
     const isVerified = await verifyPqcWasmSignature(wasmBuffer, signatureBuffer, publicKeyBase64, algorithmName);
     const endTime = performance.now();
     const durationMs = endTime - startTime;
+    
+    // Debug: Log the result
+    console.log('DEBUG: Verification result:', isVerified);
+    console.log('DEBUG: Mock verify called times:', mockOqsSignatureInstance.verify.mock.calls.length);
     
     console.log(
       `PERFORMANCE_LOG: operation=verify_wasm_signature, algorithm=${algorithmName}, ` +

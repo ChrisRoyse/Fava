@@ -2,7 +2,7 @@ import pytest
 from unittest import mock
 
 # Import fixtures from the new location
-from .fixtures import mock_crypto_libs, mock_fava_config
+from tests.granular.pqc_data_at_rest.fixtures import mock_crypto_libs, mock_fava_config
 # Assuming CryptoServiceLocator might be needed for type hinting or direct use in fixtures
 from fava.crypto.locator import CryptoServiceLocator
 
@@ -17,14 +17,14 @@ class TestFavaLedgerIntegration:
     """
     @pytest.fixture
     def fava_ledger(self, mock_fava_config):
-        from fava.core.ledger import FavaLedger
+        from fava.core import FavaLedger
         ledger = FavaLedger(mock_fava_config)
         ledger.crypto_service_locator = mock.Mock(spec=CryptoServiceLocator)
         return ledger
     @pytest.mark.key_management
     @pytest.mark.critical_path
-    @mock.patch('fava.core.ledger.PROMPT_USER_FOR_PASSPHRASE_SECURELY')
-    @mock.patch('fava.core.ledger.RETRIEVE_OR_GENERATE_SALT_FOR_CONTEXT')
+    @mock.patch('fava.core.ledger_main.PROMPT_USER_FOR_PASSPHRASE_SECURELY')
+    @mock.patch('fava.core.ledger_main.RETRIEVE_OR_GENERATE_SALT_FOR_CONTEXT')
     @mock.patch('fava.crypto.keys.load_keys_from_external_file')
     def test_tp_dar_fl_001_get_key_material_decrypt_passphrase(
         self,
@@ -63,7 +63,7 @@ class TestFavaLedgerIntegration:
         # We need to mock it where it's called if we want to control its output from here.
         # Let's patch it directly for the scope of this test method call on fava_ledger.
 
-        with mock.patch('fava.core.ledger.fava_keys.derive_kem_keys_from_passphrase') as mock_internal_derive_keys:
+        with mock.patch('fava.core.ledger_main.fava_keys.derive_kem_keys_from_passphrase') as mock_internal_derive_keys:
             mock_classical_sk_bytes = b"mock_classical_sk_bytes_derived"
             mock_pqc_sk_bytes = b"mock_pqc_sk_bytes_derived"
             mock_internal_derive_keys.return_value = (
@@ -78,12 +78,13 @@ class TestFavaLedgerIntegration:
             
             active_suite_config = mock_fava_config.pqc_suites[mock_fava_config.pqc_active_suite_id]
             mock_internal_derive_keys.assert_called_once_with(
-                "test_passphrase",
-                b"a_salt_for_context_16b",
-                active_suite_config.get("pbkdf_algorithm_for_passphrase"),
-                active_suite_config.get("kdf_algorithm_for_ikm_from_pbkdf"),
-                active_suite_config.get("classical_kem_algorithm"),
-                active_suite_config.get("pqc_kem_algorithm")
+                passphrase="test_passphrase",
+                salt=b"a_salt_for_context_16b",
+                pbkdf_algorithm="Argon2id",
+                kdf_algorithm_for_ikm="HKDF-SHA3-512",
+                classical_kem_spec="X25519",
+                pqc_kem_spec="Kyber768",
+                argon2_params=None
             )
             assert key_material == {
                 "classical_private_key": mock_classical_sk_bytes,
@@ -98,8 +99,8 @@ class TestFavaLedgerIntegration:
         # mock_derive_kem_keys was not a direct argument, mock_internal_derive_keys was used in a 'with' block
         mock_load_keys_external_file.reset_mock() # Reset this one too
 
-        mock_fava_config.pqc_key_management_mode = "EXTERNAL_FILE"
-        mock_fava_config.pqc_key_file_paths = {"classical_private": "c.key", "pqc_private": "p.key"}
+        fava_ledger.fava_options.pqc_key_management_mode = "EXTERNAL_FILE"
+        fava_ledger.fava_options.pqc_key_file_paths = {"classical_private": "c.key", "pqc_private": "p.key"}
         
         mock_classical_sk_ext_bytes = b"mock_classical_sk_bytes_external"
         mock_pqc_sk_ext_bytes = b"mock_pqc_sk_bytes_external"
@@ -109,7 +110,10 @@ class TestFavaLedgerIntegration:
         )
 
         key_material_ext = fava_ledger._get_key_material_for_operation(file_path_context, operation_type)
-        mock_load_keys_external_file.assert_called_once_with(mock_fava_config.pqc_key_file_paths)
+        mock_load_keys_external_file.assert_called_once_with(
+            key_file_path_config=fava_ledger.fava_options.pqc_key_file_paths,
+            pqc_kem_spec="Kyber768"
+        )
         assert key_material_ext == {
             "classical_private_key": mock_classical_sk_ext_bytes,
             "pqc_private_key": mock_pqc_sk_ext_bytes
@@ -120,12 +124,12 @@ class TestFavaLedgerIntegration:
 
     @pytest.mark.critical_path
     @pytest.mark.config_dependent
-    @mock.patch('fava.core.ledger.WRITE_BYTES_TO_FILE')
-    @mock.patch('fava.core.ledger.READ_BYTES_FROM_FILE')
-    @mock.patch('fava.core.ledger.parse_beancount_file_from_source')
-    @mock.patch('fava.core.ledger.PROMPT_USER_FOR_PASSPHRASE_SECURELY')
-    @mock.patch('fava.core.ledger.RETRIEVE_OR_GENERATE_SALT_FOR_CONTEXT')
-    @mock.patch('fava.crypto.keys.derive_kem_keys_from_passphrase')
+    @mock.patch('fava.core.ledger_main.WRITE_BYTES_TO_FILE')
+    @mock.patch('fava.core.ledger_main.READ_BYTES_FROM_FILE')
+    @mock.patch('fava.core.ledger_main.parse_beancount_file_from_source')
+    @mock.patch('fava.core.ledger_main.PROMPT_USER_FOR_PASSPHRASE_SECURELY')
+    @mock.patch('fava.core.ledger_main.RETRIEVE_OR_GENERATE_SALT_FOR_CONTEXT')
+    @mock.patch('fava.core.ledger_main.fava_keys.derive_kem_keys_from_passphrase')
     def test_tp_dar_fl_002_save_reload_pqc_encrypted_file(
         self, mock_derive_keys_for_get_material, mock_get_salt_for_get_material,
         mock_prompt_pass_for_get_material,
@@ -136,8 +140,8 @@ class TestFavaLedgerIntegration:
         file_path = "test_ledger.bc.pqc_fava"
         key_context = "test_ledger_context"
 
-        mock_fava_config.pqc_data_at_rest_enabled = True
-        mock_fava_config.pqc_key_management_mode = "PASSPHRASE_DERIVED"
+        fava_ledger.fava_options.pqc_data_at_rest_enabled = True
+        fava_ledger.fava_options.pqc_key_management_mode = "PASSPHRASE_DERIVED"
         
         mock_classical_pk_bytes_save = b"classical_pk_for_save"
         mock_pqc_pk_bytes_save = b"pqc_pk_for_save_1184b" + b"A" * (1184 - len(b"pqc_pk_for_save_1184b"))
@@ -158,8 +162,16 @@ class TestFavaLedgerIntegration:
         mock_prompt_pass_for_get_material.assert_called_with(f"Enter passphrase for {key_context} (encrypt):")
         mock_get_salt_for_get_material.assert_called_with(f"{key_context}_encrypt_salt")
         
-        active_suite_config_save = mock_fava_config.pqc_suites[mock_fava_config.pqc_active_suite_id]
-        fava_ledger.crypto_service_locator.get_pqc_encrypt_handler.assert_called_once_with(active_suite_config_save, mock_fava_config)
+        expected_suite_config = {
+            "id": "X25519_KYBER768_AES256GCM",
+            "classical_kem_algorithm": "X25519",
+            "pqc_kem_algorithm": "ML-KEM-768",
+            "symmetric_algorithm": "AES256GCM",
+            "kdf_algorithm_for_hybrid_sk": "HKDF-SHA3-512",
+            "pbkdf_algorithm_for_passphrase": "Argon2id",
+            "kdf_algorithm_for_ikm_from_pbkdf": "HKDF-SHA3-512"
+        }
+        fava_ledger.crypto_service_locator.get_pqc_encrypt_handler.assert_called_once_with(expected_suite_config, fava_ledger.fava_options)
         
         expected_key_material_encrypt = {
             "classical_public_key": mock_classical_pk_bytes_save,
@@ -168,9 +180,9 @@ class TestFavaLedgerIntegration:
         # Correct indentation for the multi-line assert_called_once_with
         mock_encrypt_handler.encrypt_content.assert_called_once_with(
             plaintext_data_str,
-            active_suite_config_save,
+            expected_suite_config,
             expected_key_material_encrypt,
-            mock_fava_config
+            fava_ledger.fava_options
         )
         mock_write_bytes.assert_called_once_with(file_path, mock_encrypted_bundle_bytes)
 

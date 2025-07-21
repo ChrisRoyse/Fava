@@ -20,8 +20,13 @@ from .exceptions import (
     ApplicationStartupError,
     BundleParsingError,
     CryptoError,
+    UnsupportedAlgorithmError,
 )
-from .global_config import GlobalConfig
+from .global_config import (
+    GlobalConfig,
+    FAVA_CRYPTO_SETTINGS_PATH,
+    FAVA_CRYPTO_SETTINGS_ExpectedSchema
+)
 from .interfaces import (
     CryptoHandler,
     HybridEncryptedBundle,
@@ -54,8 +59,11 @@ __all__ = [
     "ApplicationStartupError",
     "BundleParsingError",
     "CryptoError",
+    "UnsupportedAlgorithmError",
     # Global Config
     "GlobalConfig",
+    "FAVA_CRYPTO_SETTINGS_PATH",
+    "FAVA_CRYPTO_SETTINGS_ExpectedSchema",
     # Interfaces
     "CryptoHandler",
     "HybridEncryptedBundle",

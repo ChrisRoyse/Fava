@@ -266,12 +266,27 @@ class FilterEntries:
         """Provide compatibility with original Fava API."""
         return self.entries
     
-    @property
-    def prices(self):
-        """Provide access to price entries."""
+    def prices(self, base: str | None = None, quote: str | None = None):
+        """Get prices for a specific base/quote pair or return the price map.
+        
+        Args:
+            base: Base currency (optional)
+            quote: Quote currency (optional)
+            
+        Returns:
+            If base and quote are provided, returns list of price points.
+            Otherwise returns the FavaPriceMap object.
+        """
         from fava.beans.prices import FavaPriceMap
         price_entries = [e for e in self.entries if hasattr(e, '__class__') and e.__class__.__name__ == 'Price']
-        return FavaPriceMap(price_entries)
+        price_map = FavaPriceMap(price_entries)
+        
+        if base is not None and quote is not None:
+            # Return price points for the specific pair
+            return price_map.get_all_prices((base, quote))
+        else:
+            # Return the price map object
+            return price_map
     
     def get_account_entries(self, account_name: str) -> List[Directive]:
         """Get entries for a specific account."""

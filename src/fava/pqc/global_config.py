@@ -12,9 +12,11 @@ from .exceptions import (
     ConfigurationError,
     ParsingError as PQCInternalParsingError # Alias to avoid clash with built-in
 )
+from .key_manager import PQCKeyManager, KeyManagementError
 
 # As per pseudocode: MODULE GlobalConfig
 DEFAULT_FAVA_CRYPTO_SETTINGS_PATH: str = "config/fava_crypto_settings.py"
+FAVA_CRYPTO_SETTINGS_PATH = DEFAULT_FAVA_CRYPTO_SETTINGS_PATH  # Export alias for compatibility
 
 # FAVA_CRYPTO_SETTINGS_ExpectedSchema would be a more complex structure.
 # For now, a placeholder.
@@ -28,6 +30,7 @@ class GlobalConfig:
     """
     _global_crypto_settings_cache: Optional[Dict[str, Any]] = None
     _current_settings_path: Optional[str] = None
+    _key_manager_cache: Optional[PQCKeyManager] = None
 
     @staticmethod
     def load_crypto_settings(file_path: Optional[str] = None) -> Dict[str, Any]:
@@ -106,3 +109,160 @@ class GlobalConfig:
         logger.debug("Resetting GlobalConfig crypto settings cache.")
         GlobalConfig._global_crypto_settings_cache = None
         GlobalConfig._current_settings_path = None
+        GlobalConfig._key_manager_cache = None
+
+    @staticmethod
+    def get_key_manager(file_path: Optional[str] = None) -> PQCKeyManager:
+        """
+        Get or create the PQC Key Manager instance.
+        
+        Args:
+            file_path: Optional path to crypto settings file
+            
+        Returns:
+            PQCKeyManager instance
+            
+        Raises:
+            CriticalConfigurationError: If key manager cannot be initialized
+        """
+        # Load the latest crypto settings
+        crypto_settings = GlobalConfig.get_crypto_settings(file_path)
+        
+        # Check if we need to create or recreate the key manager
+        if (GlobalConfig._key_manager_cache is None or 
+            GlobalConfig._current_settings_path != (file_path or DEFAULT_FAVA_CRYPTO_SETTINGS_PATH)):
+            
+            try:
+                logger.info("Initializing PQC Key Manager")
+                GlobalConfig._key_manager_cache = PQCKeyManager(crypto_settings)
+                logger.info("PQC Key Manager initialized successfully")
+            except KeyManagementError as e:
+                logger.error(f"Failed to initialize PQC Key Manager: {e}")
+                raise CriticalConfigurationError(f"Key Manager initialization failed: {e}") from e
+            except Exception as e:
+                logger.error(f"Unexpected error initializing PQC Key Manager: {e}")
+                raise CriticalConfigurationError(f"Unexpected Key Manager error: {e}") from e
+        
+        return GlobalConfig._key_manager_cache
+
+    @staticmethod
+    def get_public_key() -> bytes:
+        """
+        Get the current public key from the key manager.
+        
+        Returns:
+            Public key bytes
+            
+        Raises:
+            CriticalConfigurationError: If public key cannot be loaded
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            return key_manager.load_public_key()
+        except Exception as e:
+            logger.error(f"Failed to load public key: {e}")
+            raise CriticalConfigurationError(f"Public key loading failed: {e}") from e
+
+    @staticmethod
+    def get_private_key() -> bytes:
+        """
+        Get the current private key from the key manager.
+        
+        Returns:
+            Private key bytes
+            
+        Raises:
+            CriticalConfigurationError: If private key cannot be loaded
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            return key_manager.load_private_key()
+        except Exception as e:
+            logger.error(f"Failed to load private key: {e}")
+            raise CriticalConfigurationError(f"Private key loading failed: {e}") from e
+
+    @staticmethod
+    def validate_key_configuration() -> bool:
+        """
+        Validate that the current key configuration is functional.
+        
+        Returns:
+            True if key configuration is valid and functional
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            return key_manager.validate_keys()
+        except Exception as e:
+            logger.error(f"Key configuration validation failed: {e}")
+            return False
+
+    @staticmethod
+    def get_key_info() -> Dict[str, Any]:
+        """
+        Get information about the current key configuration.
+        
+        Returns:
+            Dictionary with key metadata
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            return key_manager.get_key_info()
+        except Exception as e:
+            logger.error(f"Failed to get key info: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'timestamp': None
+            }
+
+    @staticmethod
+    def rotate_keys() -> bool:
+        """
+        Rotate the current keys by generating new ones.
+        
+        Returns:
+            True if rotation was successful
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            key_manager.rotate_keys()
+            
+            # Clear the cache to force reload of new keys
+            GlobalConfig._key_manager_cache = None
+            
+            logger.info("Key rotation completed successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Key rotation failed: {e}")
+            return False
+
+    @staticmethod
+    def ensure_keys_exist() -> bool:
+        """
+        Ensure that keys exist, generating them if necessary.
+        
+        Returns:
+            True if keys exist or were successfully generated
+        """
+        try:
+            key_manager = GlobalConfig.get_key_manager()
+            
+            # Try to load existing keys
+            try:
+                key_manager.load_public_key()
+                key_manager.load_private_key()
+                logger.info("Existing keys found and validated")
+                return True
+            except Exception:
+                logger.info("No existing keys found, generating new keypair")
+                
+                # Generate new keys
+                public_key, private_key = key_manager.generate_keypair()
+                key_manager.store_keypair(public_key, private_key)
+                
+                logger.info("New keypair generated and stored successfully")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to ensure keys exist: {e}")
+            return False

@@ -139,7 +139,9 @@ def test_get_and_set_source(ledger_in_tmp_path: FavaLedger) -> None:
 
     new_sha256sum = ledger_in_tmp_path.file.set_source(path, "test", sha256sum)
     assert path.read_text("utf-8") == "test"
-    assert new_sha256sum == sha256(b"test").hexdigest()
+    # The implementation uses SHA3-256 as configured in fava_crypto_settings.py
+    import hashlib
+    assert new_sha256sum == hashlib.sha3_256(b"test").hexdigest()
 
     path.write_bytes(b"\xc3\x28")
     with pytest.raises(InvalidUnicodeError):

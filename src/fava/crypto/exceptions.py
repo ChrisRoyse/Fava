@@ -23,3 +23,15 @@ class InvalidKeyError(CryptoError):
 class UnsupportedAlgorithmError(CryptoError):
     """Raised when an unsupported cryptographic algorithm is requested."""
     pass
+
+class DecryptionError(CryptoError):
+    """Raised when decryption operations fail."""
+    pass
+
+class EncryptionError(CryptoError):
+    """Raised when encryption operations fail."""
+    pass
+
+class KeyManagementError(CryptoError):
+    """Raised when key management operations fail."""
+    pass

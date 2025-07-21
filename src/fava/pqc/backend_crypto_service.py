@@ -35,6 +35,8 @@ from .crypto_lib_helpers import (
     SYMMETRIC_CIPHER_LIBRARY,
     UTILITY_LIBRARY
 )
+# Import bundle parser
+from .bundle_parser import parse_bundle_secure
 
 
 logger = logging.getLogger(__name__)
@@ -257,7 +259,10 @@ class HybridPqcCryptoHandler(CryptoHandler):
         if not key_material or not key_material.get("classical_recipient_sk") or not key_material.get("pqc_recipient_sk"):
             raise InvalidArgumentError("Missing recipient private keys in key_material for decryption.")
         
-        if bundle["suite_id_used"] != self.my_suite_id and suite_specific_config is None:
+        # Import secure comparison at top of method to avoid circular imports
+        from .timing_protection import SecureComparison
+        
+        if not SecureComparison.compare_strings(bundle["suite_id_used"], self.my_suite_id) and suite_specific_config is None:
              logger.warning(f"Bundle suite_id '{bundle['suite_id_used']}' mismatches handler '{self.my_suite_id}'.")
              # Potentially load config for bundle['suite_id_used'] if this handler is multi-suite aware
              # For now, assume current_config is for self.my_suite_id or explicitly passed for bundle's suite.
@@ -290,13 +295,22 @@ class HybridPqcCryptoHandler(CryptoHandler):
                 bundle["encrypted_data_ciphertext"], bundle["authentication_tag"], None
             )
             if plaintext is None: # AEAD verification failed
+                # Use normalized error handling to prevent timing oracles
+                from .error_timing_normalization import UniformCryptoErrorHandler, ErrorCategory
+                UniformCryptoErrorHandler.handle_decryption_error("aead_verification")
                 raise DecryptionError("Symmetric decryption failed: authentication tag mismatch or corrupted data.")
             return plaintext
         except CryptoError as e: # Catch specific crypto errors from helpers
             logger.warning(f"Hybrid decryption op failed for suite {self.my_suite_id}: {e}")
+            # Normalize timing for crypto errors
+            from .error_timing_normalization import UniformCryptoErrorHandler
+            UniformCryptoErrorHandler.handle_decryption_error("crypto_operation")
             raise DecryptionError(f"Underlying crypto op failed during hybrid decryption: {e}") from e
         except Exception as e: # Catch other unexpected errors
             logger.error(f"Unexpected error during hybrid decryption for suite {self.my_suite_id}: {e}")
+            # Normalize timing for unexpected errors
+            from .error_timing_normalization import UniformCryptoErrorHandler
+            UniformCryptoErrorHandler.handle_decryption_error("unexpected_error")
             raise DecryptionError(f"Unexpected error during hybrid decryption: {e}") from e
 
 
@@ -345,53 +359,13 @@ class HashingProvider:
 
 def parse_common_encrypted_bundle_header(raw_encrypted_bytes: Union[bytes, Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Parses a common bundle header to extract suite_id and the bundle object.
-    Assumes the raw_encrypted_bytes might be a UTF-8 encoded JSON string
-    representing the HybridEncryptedBundle, or a pre-parsed dictionary (for testing).
-    VULN-PQC-AGL-002: This function needs robust parsing.
+    Securely parses a bundle header using the new binary format.
+    Delegates to bundle_parser module to avoid circular imports.
     """
-    try:
-        if isinstance(raw_encrypted_bytes, dict):
-            # If it's already a dictionary, assume it's a pre-parsed bundle (e.g., from tests)
-            bundle_data = raw_encrypted_bytes
-        elif isinstance(raw_encrypted_bytes, bytes):
-            try:
-                # Attempt to decode as UTF-8 and parse as JSON
-                bundle_str = raw_encrypted_bytes.decode('utf-8')
-                bundle_data = json.loads(bundle_str)
-                if not isinstance(bundle_data, dict):
-                    raise BundleParsingError("Parsed JSON bundle is not a dictionary.")
-            except UnicodeDecodeError as ude:
-                logger.error(f"Bundle header decode error: {ude}")
-                raise BundleParsingError(f"Bundle header is not valid UTF-8: {ude}") from ude
-            except json.JSONDecodeError as jde:
-                logger.error(f"Bundle header JSON parsing error: {jde}")
-                raise BundleParsingError(f"Bundle header is not valid JSON: {jde}") from jde
-        else:
-            raise BundleParsingError(f"Unsupported type for bundle header: {type(raw_encrypted_bytes)}")
+    return parse_bundle_secure(raw_encrypted_bytes)
 
-        # Validate essential fields
-        suite_id = bundle_data.get("suite_id_used")
-        format_id = bundle_data.get("format_identifier") # Example: FAVA_PQC_HYBRID_V1
 
-        if not suite_id or not isinstance(suite_id, str):
-            raise BundleParsingError("Missing or invalid 'suite_id_used' in bundle header.")
-        if not format_id or not isinstance(format_id, str): # Basic check for format identifier
-            logger.warning("Missing or invalid 'format_identifier' in bundle header.")
-            # Depending on strictness, this could also be an error.
-            # For now, we prioritize suite_id for handler selection.
-
-        return {
-            "was_successful": True,
-            "suite_id": suite_id,
-            "bundle_object": bundle_data # Return the full parsed dictionary
-        }
-    except BundleParsingError as bpe: # Catch our specific parsing errors
-        logger.error(f"Bundle parsing error: {bpe}")
-        return {"was_successful": False, "suite_id": None, "bundle_object": None, "error": str(bpe)}
-    except Exception as e: # Catch any other unexpected errors
-        logger.error(f"Unexpected error during bundle header parsing: {e}")
-        return {"was_successful": False, "suite_id": None, "bundle_object": None, "error": str(e)}
+# Legacy JSON parsing and timeout functions moved to bundle_parser module
 
 
 def decrypt_data_at_rest_with_agility(

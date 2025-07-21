@@ -215,7 +215,7 @@ def test_statement_download(
     """Download entry statement."""
 
     path = Path(__file__)
-    by_account = path.parent.parent / "found_by_account"
+    by_account = path.parent / "found_by_account"
     date = datetime.date(2022, 1, 1)
     txn = create.transaction(
         {
